@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -11,10 +11,11 @@ import {
   Badge,
 } from '@intellect-kanban/ui';
 import { Board } from '@/utils/types';
-import { LayoutDashboardIcon, ArrowRightIcon, CalendarIcon } from 'lucide-react';
+import { LayoutDashboardIcon, ArrowRightIcon, CalendarIcon, Columns } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { CreateBoardDialog } from '../boards/CreateBoardDialog';
+import { motion } from 'framer-motion';
 
 interface ClassBoardsTabProps {
   boards: Board[];
@@ -23,16 +24,10 @@ interface ClassBoardsTabProps {
 
 export function ClassBoardsTab({ boards, classId }: ClassBoardsTabProps) {
   const router = useRouter();
-  const [localBoards, setLocalBoards] = useState<Board[]>(boards);
   
   // Navigate to board detail page
   const handleOpenBoard = (boardId: string) => {
     router.push(`/dashboard/board/${boardId}`);
-  };
-
-  // Add a new board to the local state without refetching
-  const handleBoardCreated = (newBoard: Board) => {
-    setLocalBoards(prevBoards => [...prevBoards, newBoard]);
   };
 
   // Get a simplified date format
@@ -44,68 +39,110 @@ export function ClassBoardsTab({ boards, classId }: ClassBoardsTabProps) {
     }
   };
 
+  // Card animation variants
+  const cardVariants = {
+    hidden: { opacity: 0, y: 10 },
+    visible: { 
+      opacity: 1, 
+      y: 0,
+      transition: { duration: 0.25 }
+    },
+    hover: { 
+      scale: 1.01,
+      boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+      borderColor: "hsl(var(--primary) / 0.2)",
+      transition: { duration: 0.15, ease: "easeInOut" }
+    }
+  };
+
+  // Container animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { 
+      opacity: 1,
+      transition: { staggerChildren: 0.08 }
+    }
+  };
+
   return (
-    <div className="space-y-8 max-w-5xl">
-      {localBoards.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-              <LayoutDashboardIcon className="h-8 w-8 text-primary" />
+    <div>
+      {boards.length === 0 ? (
+        <Card className="bg-muted/20 border-dashed">
+          <CardContent className="flex flex-col items-center justify-center text-center py-8">
+            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-3">
+              <LayoutDashboardIcon className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="text-xl font-medium">No Kanban Boards</h3>
-            <p className="mt-2 text-center text-muted-foreground max-w-sm">
+            <h3 className="text-base font-medium">No Kanban Boards</h3>
+            <p className="mt-1 text-xs text-muted-foreground max-w-sm">
               Create your first board to start organizing activities for this class.
-              Students will be able to track their progress.
             </p>
-            <div className="mt-6">
+            <div className="mt-4">
               <CreateBoardDialog 
-                onBoardCreated={handleBoardCreated}
+                onBoardCreated={(newBoard) => {
+                  // This will be handled by the parent component
+                  console.log("Board created in empty state view");
+                }}
                 classId={classId}
-                size="lg"
               />
             </div>
           </CardContent>
         </Card>
       ) : (
-        <div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {localBoards.map((board) => (
-              <Card 
-                key={board._id}
-                className="cursor-pointer hover:shadow-md transition-all border border-border/60 hover:border-primary/30"
-                onClick={() => handleOpenBoard(board._id)}
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex justify-between items-start gap-2">
-                    <CardTitle className="text-lg line-clamp-1">{board.name}</CardTitle>
-                    <Badge variant="outline" className="whitespace-nowrap">
-                      {board.columns.length} columns
+        <motion.div 
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-1 md:grid-cols-2 gap-3"
+        >
+          {boards.map((board) => (
+            <motion.div
+              key={board._id}
+              variants={cardVariants}
+              whileHover="hover"
+              onClick={() => handleOpenBoard(board._id)}
+              className="cursor-pointer"
+            >
+              <Card className="h-full border hover:shadow-sm transition-shadow">
+                <CardHeader className="pb-2 space-y-1">
+                  <div className="flex justify-between items-start">
+                    <CardTitle className="text-base sm:text-lg line-clamp-1 flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+                        <Columns className="h-3.5 w-3.5 text-primary" />
+                      </div>
+                      {board.name}
+                    </CardTitle>
+                    <Badge variant="outline" className="whitespace-nowrap text-xs">
+                      {board.columns.length} {board.columns.length === 1 ? 'column' : 'columns'}
                     </Badge>
                   </div>
-                  <CardDescription className="line-clamp-2">
-                    {board.description || 'No description provided'}
-                  </CardDescription>
+                  {board.description && (
+                    <CardDescription className="line-clamp-1 text-xs sm:text-sm">
+                      {board.description}
+                    </CardDescription>
+                  )}
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="flex gap-2 flex-wrap">
-                      {board.columns.map((column, index) => (
-                        <Badge 
-                          key={column.id}
-                          variant="secondary"
-                          className="text-xs"
-                        >
-                          {column.name}
-                        </Badge>
-                      )).slice(0, 3)}
-                      {board.columns.length > 3 && (
-                        <Badge variant="outline" className="text-xs">
-                          +{board.columns.length - 3} more
-                        </Badge>
-                      )}
-                    </div>
+                <CardContent className="pb-3">
+                  <div className="space-y-3">
+                    {board.columns.length > 0 && (
+                      <div className="flex gap-1.5 flex-wrap">
+                        {board.columns.slice(0, 3).map((column) => (
+                          <Badge 
+                            key={column.id}
+                            variant="secondary"
+                            className="text-xs px-1.5 py-0"
+                          >
+                            {column.name}
+                          </Badge>
+                        ))}
+                        {board.columns.length > 3 && (
+                          <Badge variant="outline" className="text-xs px-1.5 py-0">
+                            +{board.columns.length - 3} more
+                          </Badge>
+                        )}
+                      </div>
+                    )}
                     
-                    <div className="pt-4 mt-2 border-t flex justify-between items-center">
+                    <div className="flex justify-between items-center pt-2 border-t border-border/30">
                       <div className="flex items-center text-xs text-muted-foreground">
                         <CalendarIcon className="h-3 w-3 mr-1" />
                         <span>{getFormattedDate(board.createdAt)}</span>
@@ -114,7 +151,7 @@ export function ClassBoardsTab({ boards, classId }: ClassBoardsTabProps) {
                       <Button 
                         variant="ghost"
                         size="sm"
-                        className="h-8 -mr-2"
+                        className="h-6 text-xs"
                       >
                         Open <ArrowRightIcon className="ml-1 h-3 w-3" />
                       </Button>
@@ -122,9 +159,9 @@ export function ClassBoardsTab({ boards, classId }: ClassBoardsTabProps) {
                   </div>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        </div>
+            </motion.div>
+          ))}
+        </motion.div>
       )}
     </div>
   );

@@ -8,7 +8,7 @@ export const metadata = {
 
 export default function ClassesPage() {
   return (
-    <DashboardPage title="Classes">
+    <DashboardPage title="" className="!pt-0">
       <TeacherClasses />
     </DashboardPage>
   );

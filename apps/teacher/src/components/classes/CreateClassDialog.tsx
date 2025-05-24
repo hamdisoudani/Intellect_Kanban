@@ -16,8 +16,10 @@ import {
   Label
 } from '@intellect-kanban/ui';
 import { createClassSchema, createClassInitialValues } from '@/utils/validation/class';
-import { CreateClassRequest, Class } from '@/utils/types';
+import { Class } from '@/utils/types';
+import { CreateClassRequest } from '@/utils/types/classes';
 import { PlusIcon, Loader2Icon } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 interface CreateClassDialogProps {
   onClassCreated: (newClass: Class) => void;
@@ -68,16 +70,21 @@ export function CreateClassDialog({ onClassCreated }: CreateClassDialogProps) {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <PlusIcon className="mr-2 h-4 w-4" />
-          Create Class
-        </Button>
+        <motion.div 
+          whileHover={{ scale: 1.02 }} 
+          whileTap={{ scale: 0.98 }}
+        >
+          <Button className="gap-2 px-4 font-medium">
+            <PlusIcon className="h-4 w-4" />
+            Create Class
+          </Button>
+        </motion.div>
       </DialogTrigger>
       
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
-          <DialogTitle>Create New Class</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-2xl">Create New Class</DialogTitle>
+          <DialogDescription className="text-muted-foreground mt-2">
             Enter the details to create a new class. Students will be able to join using the invitation code.
           </DialogDescription>
         </DialogHeader>
@@ -88,9 +95,9 @@ export function CreateClassDialog({ onClassCreated }: CreateClassDialogProps) {
           onSubmit={handleSubmit}
         >
           {({ errors, touched, isSubmitting }) => (
-            <Form className="space-y-6 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">
+            <Form className="space-y-6 py-6">
+              <div className="space-y-3">
+                <Label htmlFor="name" className="text-base">
                   Class Name
                 </Label>
                 <Field
@@ -98,23 +105,28 @@ export function CreateClassDialog({ onClassCreated }: CreateClassDialogProps) {
                   id="name"
                   name="name"
                   placeholder="Enter class name..."
-                  className={errors.name && touched.name ? 'border-destructive' : ''}
+                  className={errors.name && touched.name ? 'border-destructive' : 'text-base py-5'}
                 />
                 {errors.name && touched.name && (
                   <p className="text-sm text-destructive">{errors.name}</p>
                 )}
               </div>
               
-              <DialogFooter>
+              <DialogFooter className="pt-2">
                 <Button 
                   type="button" 
                   variant="outline" 
                   onClick={() => setIsOpen(false)}
                   disabled={isSubmitting}
+                  className="mr-2"
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isSubmitting}>
+                <Button 
+                  type="submit" 
+                  disabled={isSubmitting}
+                  className="min-w-[120px]"
+                >
                   {isSubmitting ? (
                     <>
                       <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
