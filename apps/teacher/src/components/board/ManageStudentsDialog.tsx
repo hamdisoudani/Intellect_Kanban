@@ -122,7 +122,7 @@ export function ManageStudentsDialog({
     setIsSubmitting(true);
     
     try {
-      const response = await fetch(`/api/activities/${activityId}/assign`, {
+      const response = await fetch(`/api/board/${activity.boardId}/activities/${activityId}/assign`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

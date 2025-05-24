@@ -34,7 +34,7 @@ export function MetaActivityCard({
   const getActivityColor = () => {
     const activityId = getActivityId(activity);
     if (!activityId) return 'border-primary';
-    return `border-[${stc(activityId)}]`;
+    return stc(activityId);
   };
 
   return (
@@ -75,15 +75,20 @@ export function MetaActivityCard({
 
       {/* Activity card - now the entire card is clickable to manage students */}
       <Card 
-        className={`hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-primary/5 transition-all cursor-pointer border-l-2 pl-8 ${getActivityColor()} ${
-          isSelected ? 'bg-primary/5 dark:bg-primary/10' : ''
+        className={`hover:shadow-md transition-all cursor-pointer pl-8 ${
+          isSelected ? 'bg-primary/5 dark:bg-primary/10 border-primary/50' : ''
         }`}
+        style={{ borderLeftWidth: '4px', borderLeftColor: getActivityColor() }}
         onClick={() => onManageStudents(activity)}
       >
         <CardContent className="p-3">
           {/* Activity title */}
           <div className="mb-2">
-            <h4 className="font-medium text-sm line-clamp-1">
+            <h4 className="font-medium text-sm line-clamp-1 flex items-center gap-1.5">
+              <span 
+                className="inline-block h-2.5 w-2.5 rounded-full flex-shrink-0" 
+                style={{ backgroundColor: getActivityColor() }}
+              ></span>
               {activity.title}
             </h4>
           </div>
@@ -101,9 +106,9 @@ export function MetaActivityCard({
             
             <div className="flex items-center gap-1">
               <UsersIcon className="h-3 w-3" />
-              <Badge variant="outline" className="h-4 text-[10px] px-1">
+              <span className="text-xs">
                 {activity.assignedStudents?.length || 0} students
-              </Badge>
+              </span>
             </div>
           </div>
           

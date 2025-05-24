@@ -51,8 +51,6 @@ interface BoardHeaderProps {
   onActivityButtonClick?: () => void;
   currentView?: 'personal' | 'class';
   onViewChange?: (mode: 'personal' | 'class') => void;
-  onToggleSidebar?: () => void;
-  isSidebarOpen?: boolean;
 }
 
 // Helper function to safely convert classId to string
@@ -81,9 +79,7 @@ export function BoardHeader({
   onCreateActivity, 
   onActivityButtonClick,
   currentView = 'personal', 
-  onViewChange,
-  onToggleSidebar,
-  isSidebarOpen = true
+  onViewChange
 }: BoardHeaderProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [boardTitle, setBoardTitle] = useState(board.name);

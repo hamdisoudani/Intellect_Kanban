@@ -4,10 +4,10 @@ import { apiClient } from '@intellect-kanban/utils';
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string, activityId: string } }
 ) {
   // Await params to fix Next.js warning
-  const { id } = await Promise.resolve(params);
+  const { activityId } = await Promise.resolve(params);
   
   try {
     const session = await auth();
@@ -32,7 +32,7 @@ export async function POST(
     
     // Call the backend API to assign students with auth token
     const response = await apiClient.post(
-      `/activities/${id}/assign`,
+      `/activities/${activityId}/assign`,
       { studentIds },
       {
         headers: {

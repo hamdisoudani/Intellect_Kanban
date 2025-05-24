@@ -83,20 +83,20 @@ export function AssignmentCard({
     if (activityColor) return activityColor;
     
     // If activityId is provided directly, use it
-    if (activityId) return `border-[${stc(activityId)}]`;
+    if (activityId) return stc(activityId);
     
     // If activity is an object with _id, use that
     if (typeof assignment.activityId === 'object' && assignment.activityId?._id) {
-      return `border-[${stc(assignment.activityId._id)}]`;
+      return stc(assignment.activityId._id);
     }
     
     // If activity is a string ID, use that
     if (typeof assignment.activityId === 'string') {
-      return `border-[${stc(assignment.activityId)}]`;
+      return stc(assignment.activityId);
     }
     
     // Default color
-    return 'border-primary';
+    return '#7f1de4'; // Default string-to-color value
   };
   
   return (
@@ -110,14 +110,19 @@ export function AssignmentCard({
       className="mb-3" // Added spacing between cards
     >
       <Card 
-        className={`hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-primary/5 transition-all cursor-pointer border-l-2 ${getBorderColor()}`}
+        className="hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-primary/5 transition-all cursor-pointer"
+        style={{ borderLeftWidth: '4px', borderLeftColor: getBorderColor() }}
         onClick={() => onClick?.(assignment)}
       >
         <CardContent className="p-3">
           {/* Activity Title with color */}
           {activityTitle && (
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-xs font-medium line-clamp-1 flex-1">
+              <h4 className="text-xs font-medium line-clamp-1 flex-1 flex items-center gap-1.5">
+                <span 
+                  className="inline-block h-2 w-2 rounded-full flex-shrink-0" 
+                  style={{ backgroundColor: getBorderColor() }}
+                ></span>
                 {activityTitle}
               </h4>
               <TooltipProvider>

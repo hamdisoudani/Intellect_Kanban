@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Button, Skeleton, Badge } from '@intellect-kanban/ui';
+import { Button, Skeleton, Badge, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, Checkbox, Avatar, AvatarFallback, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@intellect-kanban/ui';
 import { toast } from 'sonner';
 import { Board, Activity as ActivityType, StudentOption } from '@/utils/types';
 import { Assignment } from '@/utils/types/assignment';
@@ -9,7 +9,7 @@ import { BoardHeader } from './BoardHeader';
 import { ActivityDetailDialog } from './ActivityDetailDialog';
 import { PriorityBadge } from './PriorityBadge';
 import { CreateActivityDialog } from './CreateActivityDialog';
-import { PlusIcon, CheckCircle, Circle, CheckSquare, Square, Filter, AlertCircle, Calendar, UsersIcon, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { PlusIcon, CheckCircle, Circle, CheckSquare, Square, Filter, AlertCircle, Calendar, UsersIcon, Search, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { KanbanActivityCard } from './KanbanActivityCard';
 import { AssignmentCard } from './AssignmentCard';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -67,10 +67,13 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
 
   // Add these states to the KanbanBoard component
   const [searchQuery, setSearchQuery] = useState('');
-  const [isClassActivitiesSidebarOpen, setIsClassActivitiesSidebarOpen] = useState(true);
-
+  const [selectedStudentFilters, setSelectedStudentFilters] = useState<Set<string>>(new Set());
+  const [tempStudentFilters, setTempStudentFilters] = useState<Set<string>>(new Set());
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  
   // Add state for managing students dialog
   const [isManageStudentsOpen, setIsManageStudentsOpen] = useState(false);
+  const [isStudentFilterOpen, setIsStudentFilterOpen] = useState(false);
 
   // Separate useEffect for fetching activities after board is loaded
   useEffect(() => {
@@ -617,6 +620,97 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     }
   };
 
+  // Get all assignments (unfiltered) for a column
+  const getAllColumnAssignments = (columnId: string) => {
+    if (currentView !== 'class' || columnId === 'meta-activities') {
+      return []; // Only relevant for regular columns in class view
+    }
+    
+    // Collect all assignments for selected meta activities that belong in this column
+    // WITHOUT applying student filters
+    const assignments: Assignment[] = [];
+    
+    // For each selected meta activity
+    selectedMetaActivities.forEach(activityId => {
+      const activityAssignments = assignmentsByActivity[activityId] || [];
+      
+      // Filter assignments for this column
+      const columnAssignments = activityAssignments.filter(
+        assignment => assignment.columnId === columnId
+      );
+      
+      assignments.push(...columnAssignments);
+    });
+    
+    return assignments;
+  };
+
+  // Get assignments for display in the columns (with filters applied)
+  const getColumnAssignments = (columnId: string) => {
+    if (currentView !== 'class' || columnId === 'meta-activities') {
+      return []; // Only show assignments in regular columns of class view
+    }
+    
+    // Get all assignments for this column
+    const assignments = getAllColumnAssignments(columnId);
+    
+    // Additional filter by selected students if any are selected
+    if (selectedStudentFilters.size > 0) {
+      return assignments.filter(assignment => {
+        const studentId = typeof assignment.studentId === 'object' 
+          ? assignment.studentId._id 
+          : assignment.studentId;
+        return selectedStudentFilters.has(studentId as string);
+      });
+    }
+    
+    return assignments;
+  };
+  
+  // Function to get all unique students from selected meta activities
+  const getUniqueStudentsFromSelectedActivities = (): { _id: string; name: string }[] => {
+    const uniqueStudents = new Map<string, { _id: string; name: string }>();
+    
+    // Go through all assignments for selected activities
+    selectedMetaActivities.forEach(activityId => {
+      const activityAssignments = assignmentsByActivity[activityId] || [];
+      
+      activityAssignments.forEach(assignment => {
+        if (typeof assignment.studentId === 'object' && assignment.studentId?._id) {
+          const student = assignment.studentId;
+          uniqueStudents.set(student._id, { 
+            _id: student._id, 
+            name: student.name || 'Unnamed Student'
+          });
+        } else if (typeof assignment.studentId === 'string') {
+          // Try to find student in the students array
+          const studentId = assignment.studentId;
+          const student = students.find(s => s._id === studentId);
+          
+          if (student) {
+            uniqueStudents.set(studentId, {
+              _id: studentId,
+              name: student.name || 'Unnamed Student'
+            });
+          }
+        }
+      });
+    });
+    
+    return Array.from(uniqueStudents.values());
+  };
+  
+  // Get the appropriate count for the column badge
+  const getColumnBadgeCount = (columnId: string) => {
+    if (currentView === 'personal' || columnId === 'meta-activities') {
+      // For personal view or meta column, use activity count
+      return getFilteredActivities(columnId)?.length || 0;
+    } else {
+      // For class view regular columns, use assignment count
+      return getColumnAssignments(columnId).length;
+    }
+  };
+
   // Loading state
   if (isLoading) {
     // Try to match the number of columns if possible
@@ -686,41 +780,6 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     }
   };
 
-  // Get assignments for display in the columns
-  const getColumnAssignments = (columnId: string) => {
-    if (currentView !== 'class' || columnId === 'meta-activities') {
-      return []; // Only show assignments in regular columns of class view
-    }
-    
-    // Collect all assignments for selected meta activities that belong in this column
-    const assignments: Assignment[] = [];
-    
-    // For each selected meta activity
-    selectedMetaActivities.forEach(activityId => {
-      const activityAssignments = assignmentsByActivity[activityId] || [];
-      
-      // Filter assignments for this column
-      const columnAssignments = activityAssignments.filter(
-        assignment => assignment.columnId === columnId
-      );
-      
-      assignments.push(...columnAssignments);
-    });
-    
-    return assignments;
-  };
-  
-  // Get the appropriate count for the column badge
-  const getColumnBadgeCount = (columnId: string) => {
-    if (currentView === 'personal' || columnId === 'meta-activities') {
-      // For personal view or meta column, use activity count
-      return getFilteredActivities(columnId)?.length || 0;
-    } else {
-      // For class view regular columns, use assignment count
-      return getColumnAssignments(columnId).length;
-    }
-  };
-
   return (
     <div className="flex flex-col h-screen">
       {isLoading ? (
@@ -736,8 +795,6 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
             onActivityButtonClick={() => setIsCreateActivityOpen(true)}
             onViewChange={handleViewChange}
             currentView={currentView}
-            onToggleSidebar={() => setIsClassActivitiesSidebarOpen(prev => !prev)}
-            isSidebarOpen={isClassActivitiesSidebarOpen}
           />
         </div>
       )}
@@ -745,25 +802,178 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
       {/* Board content - adjust for full screen */}
       <div className="flex-1 overflow-hidden px-4 pb-4">
         {currentView === 'class' ? (
-          <div className="w-full h-full flex">
-            {/* Class Activities Sidebar */}
-            <motion.div 
-              className="flex-shrink-0 border-r bg-muted/20 h-full flex flex-col overflow-hidden"
-              initial={{ width: 280 }}
-              animate={{ width: isClassActivitiesSidebarOpen ? 280 : 0 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
-            >
-              {isClassActivitiesSidebarOpen && (
-                <div className="w-[280px] h-full flex flex-col">
-                  <div className="p-3 border-b bg-muted/40">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-semibold text-sm flex items-center gap-1.5">
-                        Class Activities
-                        <Badge variant="outline" className="h-5 bg-primary/10 text-primary border-primary/20">
+          <div className="w-full h-full">
+            {/* Main Board Area */}
+            <div className="flex-1 overflow-x-auto">
+              <div className="flex h-full">
+                {/* Columns */}
+                <div className="flex gap-4 p-4 h-full min-w-max">
+                  {/* Meta Activities Column */}
+                  <div 
+                    className="flex flex-col h-full border rounded-lg overflow-hidden bg-card min-w-[280px] max-w-[280px]"
+                  >
+                    {/* Column Header */}
+                    <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Class Activities</span>
+                        <span className="text-xs bg-muted px-2 py-0.5 rounded-full">
                           {activities['meta-activities']?.length || 0}
-                        </Badge>
-                      </h3>
+                        </span>
+                      </div>
                       <div className="flex gap-1">
+                        {/* Filter button - only show when at least one activity is selected */}
+                        {selectedMetaActivities.size > 0 && (
+                          <DropdownMenu open={isStudentFilterOpen} onOpenChange={(open) => {
+                            // When opening the dropdown, initialize temp filters with current selection
+                            if (open) {
+                              setTempStudentFilters(new Set(selectedStudentFilters));
+                            } else {
+                              // Reset search query when closing
+                              setStudentSearchQuery('');
+                            }
+                            setIsStudentFilterOpen(open);
+                          }}>
+                            <DropdownMenuTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-7 w-7 relative"
+                              >
+                                <Filter className="h-4 w-4" />
+                                {selectedStudentFilters.size > 0 && (
+                                  <motion.span 
+                                    initial={{ scale: 0 }}
+                                    animate={{ scale: 1 }}
+                                    className="absolute -top-1 -right-1 bg-primary text-[10px] text-primary-foreground rounded-full h-4 w-4 flex items-center justify-center"
+                                  >
+                                    {selectedStudentFilters.size}
+                                  </motion.span>
+                                )}
+                                <span className="sr-only">Filter by student</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56">
+                              <motion.div 
+                                initial={{ opacity: 0, y: -5 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="p-2"
+                              >
+                                <h4 className="font-medium text-sm mb-2">Filter by student</h4>
+                                
+                                {/* Search input for students */}
+                                <div className="mb-3 relative">
+                                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                                  <Input
+                                    placeholder="Search students..."
+                                    value={studentSearchQuery}
+                                    onChange={(e) => setStudentSearchQuery(e.target.value)}
+                                    className="pl-7 h-7 text-xs"
+                                  />
+                                </div>
+                                
+                                <div className="max-h-[200px] overflow-y-auto">
+                                  {/* Get all unique students from selected activities */}
+                                  {getUniqueStudentsFromSelectedActivities().length > 0 ? (
+                                    <div className="space-y-2">
+                                      {/* Select All option */}
+                                      <div className="flex items-center gap-2 border-b pb-2 mb-2">
+                                        <Checkbox 
+                                          id="student-filter-select-all" 
+                                          checked={tempStudentFilters.size === getUniqueStudentsFromSelectedActivities().length}
+                                          onCheckedChange={(checked) => {
+                                            if (checked) {
+                                              // Select all students
+                                              const allStudents = getUniqueStudentsFromSelectedActivities();
+                                              const allIds = new Set(allStudents.map(s => s._id));
+                                              setTempStudentFilters(allIds);
+                                            } else {
+                                              // Clear all selections
+                                              setTempStudentFilters(new Set());
+                                            }
+                                          }}
+                                        />
+                                        <label 
+                                          htmlFor="student-filter-select-all" 
+                                          className="text-sm font-medium cursor-pointer"
+                                        >
+                                          Select All
+                                        </label>
+                                      </div>
+                                      
+                                      {getUniqueStudentsFromSelectedActivities()
+                                        .filter(student => 
+                                          !studentSearchQuery || 
+                                          student.name.toLowerCase().includes(studentSearchQuery.toLowerCase())
+                                        )
+                                        .map(student => (
+                                          <div key={student._id} className="flex items-center gap-2">
+                                            <Checkbox 
+                                              id={`student-filter-${student._id}`} 
+                                              checked={tempStudentFilters.has(student._id)}
+                                              onCheckedChange={(checked) => {
+                                                const newFilters = new Set(tempStudentFilters);
+                                                if (checked) {
+                                                  newFilters.add(student._id);
+                                                } else {
+                                                  newFilters.delete(student._id);
+                                                }
+                                                setTempStudentFilters(newFilters);
+                                              }}
+                                            />
+                                            <label 
+                                              htmlFor={`student-filter-${student._id}`} 
+                                              className="text-sm cursor-pointer flex items-center gap-2"
+                                            >
+                                              <Avatar className="h-5 w-5">
+                                                <AvatarFallback className="text-[9px]">
+                                                  {student.name.substring(0, 2).toUpperCase()}
+                                                </AvatarFallback>
+                                              </Avatar>
+                                              {student.name}
+                                            </label>
+                                          </div>
+                                        ))}
+                                    </div>
+                                  ) : (
+                                    <div className="text-xs text-muted-foreground text-center py-2">
+                                      No students available
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="mt-4 flex items-center justify-between">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => setTempStudentFilters(new Set())}
+                                    disabled={tempStudentFilters.size === 0}
+                                  >
+                                    Clear all
+                                  </Button>
+                                  <div className="flex gap-2">
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm"
+                                      onClick={() => setIsStudentFilterOpen(false)}
+                                    >
+                                      Cancel
+                                    </Button>
+                                    <Button 
+                                      variant="default" 
+                                      size="sm"
+                                      onClick={() => {
+                                        // Apply the temporary filters to the actual filters
+                                        setSelectedStudentFilters(new Set(tempStudentFilters));
+                                        setIsStudentFilterOpen(false);
+                                      }}
+                                    >
+                                      Apply
+                                    </Button>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                         <Button 
                           variant="ghost" 
                           size="icon" 
@@ -779,113 +989,88 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
                           )}
                           <span className="sr-only">Select All</span>
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                          onClick={() => setIsClassActivitiesSidebarOpen(false)}
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                          <span className="sr-only">Collapse sidebar</span>
-                        </Button>
                       </div>
                     </div>
                     
-                    <div className="relative">
-                      <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search activities..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-8 h-8 text-sm"
-                      />
+                    {/* Search Bar */}
+                    <div className="px-3 py-2 border-b">
+                      <div className="relative">
+                        <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search activities..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="pl-8 h-8 text-sm"
+                        />
+                      </div>
+                    </div>
+                    
+                    {/* Activities List */}
+                    <div className="flex-1 p-2 overflow-y-auto max-h-[calc(100vh-180px)]">
+                      <AnimatePresence>
+                        {isLoadingActivities ? (
+                          // Skeleton loaders for activities
+                          Array(3).fill(0).map((_, index) => (
+                            <motion.div 
+                              key={`skeleton-${index}`}
+                              initial={{ opacity: 0, y: 5 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -5 }}
+                              transition={{ duration: 0.2, delay: index * 0.05 }}
+                              className="mb-2 p-2 border rounded-md animate-pulse"
+                            >
+                              <div className="h-4 w-3/4 bg-muted-foreground/20 rounded mb-2"></div>
+                              <div className="flex justify-between items-center">
+                                <div className="h-3 w-1/4 bg-muted-foreground/15 rounded"></div>
+                                <div className="h-3 w-1/6 bg-muted-foreground/15 rounded"></div>
+                              </div>
+                            </motion.div>
+                          ))
+                        ) : getFilteredMetaActivities().length === 0 ? (
+                          // No activities or no search results
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="flex flex-col items-center justify-center h-full text-sm text-muted-foreground p-4 text-center"
+                          >
+                            {searchQuery ? (
+                              <>
+                                <Filter className="h-10 w-10 text-muted-foreground/20 mb-2" />
+                                <p>No activities match your search</p>
+                                <Button 
+                                  variant="link" 
+                                  className="text-xs mt-1 h-auto p-0" 
+                                  onClick={() => setSearchQuery('')}
+                                >
+                                  Clear search
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <AlertCircle className="h-10 w-10 text-muted-foreground/20 mb-2" />
+                                <p>No class activities available</p>
+                              </>
+                            )}
+                          </motion.div>
+                        ) : (
+                          // Activity list
+                          getFilteredMetaActivities().map((activity, index) => (
+                            <MetaActivityCard
+                              key={activity._id}
+                              activity={activity}
+                              isSelected={selectedMetaActivities.has(activity._id)}
+                              isLoading={isLoadingAssignments[activity._id]}
+                              onSelect={toggleMetaActivitySelection}
+                              onManageStudents={handleManageStudents}
+                            />
+                          ))
+                        )}
+                      </AnimatePresence>
                     </div>
                   </div>
                   
-                  <div className="flex-1 overflow-y-auto p-2">
-                    <AnimatePresence>
-                      {isLoadingActivities ? (
-                        // Skeleton loaders for activities
-                        Array(3).fill(0).map((_, index) => (
-                          <motion.div 
-                            key={`skeleton-${index}`}
-                            initial={{ opacity: 0, y: 5 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -5 }}
-                            transition={{ duration: 0.2, delay: index * 0.05 }}
-                            className="mb-2 p-2 border rounded-md animate-pulse"
-                          >
-                            <div className="h-4 w-3/4 bg-muted-foreground/20 rounded mb-2"></div>
-                            <div className="flex justify-between items-center">
-                              <div className="h-3 w-1/4 bg-muted-foreground/15 rounded"></div>
-                              <div className="h-3 w-1/6 bg-muted-foreground/15 rounded"></div>
-                            </div>
-                          </motion.div>
-                        ))
-                      ) : getFilteredMetaActivities().length === 0 ? (
-                        // No activities or no search results
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          className="flex flex-col items-center justify-center h-full text-sm text-muted-foreground p-4 text-center"
-                        >
-                          {searchQuery ? (
-                            <>
-                              <Filter className="h-10 w-10 text-muted-foreground/20 mb-2" />
-                              <p>No activities match your search</p>
-                              <Button 
-                                variant="link" 
-                                className="text-xs mt-1 h-auto p-0" 
-                                onClick={() => setSearchQuery('')}
-                              >
-                                Clear search
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <AlertCircle className="h-10 w-10 text-muted-foreground/20 mb-2" />
-                              <p>No class activities available</p>
-                            </>
-                          )}
-                        </motion.div>
-                      ) : (
-                        // Activity list
-                        getFilteredMetaActivities().map((activity, index) => (
-                          <MetaActivityCard
-                            key={activity._id}
-                            activity={activity}
-                            isSelected={selectedMetaActivities.has(activity._id)}
-                            isLoading={isLoadingAssignments[activity._id]}
-                            onSelect={toggleMetaActivitySelection}
-                            onManageStudents={handleManageStudents}
-                          />
-                        ))
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </div>
-              )}
-            </motion.div>
-            
-            {/* Main Board Area */}
-            <div className={`flex-1 overflow-x-auto relative ${!isClassActivitiesSidebarOpen ? 'pl-10' : ''}`}>
-              {/* Expand button - only show when sidebar is collapsed */}
-              {!isClassActivitiesSidebarOpen && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute left-2 top-2 z-10 h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm shadow-sm border"
-                  onClick={() => setIsClassActivitiesSidebarOpen(true)}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                  <span className="sr-only">Expand sidebar</span>
-                </Button>
-              )}
-              
-              <div className="flex h-full">
-                {/* Columns */}
-                <div className="flex gap-4 p-4 h-full">
+                  {/* Regular Columns */}
                   {board.columns.map((column) => (
                     <div 
                       key={column.id}
@@ -900,19 +1085,57 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
                           <span className="text-xs bg-muted px-2 py-0.5 rounded-full">
                             {getColumnBadgeCount(column.id)}
                           </span>
+                          
+                          {/* Show filtered vs total count when filters are active */}
+                          {currentView === 'class' && selectedStudentFilters.size > 0 && (
+                            <span className="text-xs text-muted-foreground">
+                              {getColumnAssignments(column.id).length}/{getAllColumnAssignments(column.id).length}
+                            </span>
+                          )}
                         </div>
-                                            {/* Only show add button in personal view */}
-                    {(currentView as string) !== 'class' && (
-                          <button 
-                            className="text-xs text-muted-foreground hover:text-foreground p-1 rounded"
-                            onClick={() => {
-                              // Pre-select the current column and set the type to personal in the dialog
-                              setPreSelectedColumn(column.id);
-                              setIsCreateActivityOpen(true);
-                            }}
+                        {/* Student filter badge - only show in class view when filters are active */}
+                        {currentView === 'class' && selectedStudentFilters.size > 0 && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="ml-auto mr-2 flex items-center gap-2"
                           >
-                            +
-                          </button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-5 w-5" 
+                              onClick={() => setSelectedStudentFilters(new Set())}
+                              title="Clear filters"
+                            >
+                              <X className="h-3 w-3" />
+                              <span className="sr-only">Clear filters</span>
+                            </Button>
+                            
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="outline" className="flex items-center gap-1 text-xs border-amber-200 text-amber-700 dark:border-amber-800 dark:text-amber-400 cursor-help">
+                                    <Filter className="h-3 w-3" />
+                                    <span>{selectedStudentFilters.size}</span>
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">
+                                  <p className="text-xs font-medium mb-1">Filtered students:</p>
+                                  <ul className="text-xs space-y-1 max-w-[200px]">
+                                    {Array.from(selectedStudentFilters).map(studentId => {
+                                      const student = getUniqueStudentsFromSelectedActivities().find(s => s._id === studentId);
+                                      return (
+                                        <li key={studentId} className="flex items-center gap-1">
+                                          <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+                                          {student?.name || 'Unknown student'}
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </motion.div>
                         )}
                       </div>
 
@@ -960,8 +1183,20 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
                                   exit={{ opacity: 0 }}
                                   className="flex flex-col items-center p-6 text-sm text-muted-foreground border border-dashed rounded-md"
                                 >
-                                  <span>No assignments in {column.name}</span>
-                                  <span className="text-xs mt-1">Drag assignments here</span>
+                                  {selectedStudentFilters.size > 0 ? (
+                                    <>
+                                      <Filter className="h-4 w-4 mb-2 text-muted-foreground/50" />
+                                      <span>No matching assignments</span>
+                                      <span className="text-xs mt-1">
+                                        Student filter active ({selectedStudentFilters.size})
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span>No assignments in {column.name}</span>
+                                      <span className="text-xs mt-1">Drag assignments here</span>
+                                    </>
+                                  )}
                                 </motion.div>
                               )}
                               
@@ -974,7 +1209,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
                                   exit={{ opacity: 0 }}
                                   className="flex flex-col items-center p-6 text-sm text-muted-foreground border border-dashed rounded-md"
                                 >
-                                  <span className="mb-1">← Select class activities</span>
+                                  <span className="mb-1">Select class activities</span>
                                   <span className="text-xs">to view student assignments</span>
                                 </motion.div>
                               )}
