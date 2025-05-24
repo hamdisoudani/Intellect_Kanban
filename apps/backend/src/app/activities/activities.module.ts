@@ -7,6 +7,7 @@ import { Board, BoardSchema } from '../boards/schemas/board.schema';
 import { UsersModule } from '../users/users.module';
 import { ClassesModule } from '../classes/classes.module';
 import { AssignmentsModule } from '../assignments/assignments.module';
+import { TagsModule } from '../tags/tags.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { AssignmentsModule } from '../assignments/assignments.module';
     UsersModule,
     ClassesModule,
     AssignmentsModule,
+    TagsModule,
   ],
   controllers: [ActivitiesController],
   providers: [ActivitiesService],

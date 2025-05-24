@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Input } from '@intellect-kanban/ui';
 import { MetaActivityCard } from './MetaActivityCard';
 import { ManageStudentsDialog } from './ManageStudentsDialog';
+import { TagsProvider } from '@/contexts/TagsContext';
 
 // New interface for MetaActivities display
 interface MetaColumn {
@@ -74,6 +75,9 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
   // Add state for managing students dialog
   const [isManageStudentsOpen, setIsManageStudentsOpen] = useState(false);
   const [isStudentFilterOpen, setIsStudentFilterOpen] = useState(false);
+
+  // Add a state for tracking activities being deleted
+  const [deletingActivityId, setDeletingActivityId] = useState<string>('');
 
   // Separate useEffect for fetching activities after board is loaded
   useEffect(() => {
@@ -711,6 +715,27 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     }
   };
 
+  // Update the handleActivityDeleted function to clear the pending state
+  const handleActivityDeleted = (activityId: string) => {
+    // Remove the activity from all columns
+    setActivities(prev => {
+      const updatedActivities = { ...prev };
+      
+      // Loop through all columns to find and remove the activity
+      Object.keys(updatedActivities).forEach(columnId => {
+        updatedActivities[columnId] = updatedActivities[columnId].filter(
+          activity => activity._id !== activityId
+        );
+      });
+      
+      return updatedActivities;
+    });
+
+    // Clear the selected activity and pending deletion state
+    setSelectedActivity(null);
+    setDeletingActivityId('');
+  };
+
   // Loading state
   if (isLoading) {
     // Try to match the number of columns if possible
@@ -781,575 +806,582 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
   };
 
   return (
-    <div className="flex flex-col h-screen">
-      {isLoading ? (
-        <div className="space-y-3">
-          <Skeleton className="h-8 w-3/4" />
-          <Skeleton className="h-6 w-1/2" />
-        </div>
-      ) : (
-        <div className="flex flex-col">
-          {/* BoardHeader now serves as the main navbar */}
-          <BoardHeader 
-            board={board} 
-            onActivityButtonClick={() => setIsCreateActivityOpen(true)}
-            onViewChange={handleViewChange}
-            currentView={currentView}
-          />
-        </div>
-      )}
+    <TagsProvider boardId={boardId}>
+      <div className="flex flex-col h-screen">
+        {isLoading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-8 w-3/4" />
+            <Skeleton className="h-6 w-1/2" />
+          </div>
+        ) : (
+          <div className="flex flex-col">
+            {/* BoardHeader now serves as the main navbar */}
+            <BoardHeader 
+              board={board} 
+              onActivityButtonClick={() => setIsCreateActivityOpen(true)}
+              onViewChange={handleViewChange}
+              currentView={currentView}
+            />
+          </div>
+        )}
 
-      {/* Board content - adjust for full screen */}
-      <div className="flex-1 overflow-hidden px-4 pb-4">
-        {currentView === 'class' ? (
-          <div className="w-full h-full">
-            {/* Main Board Area */}
-            <div className="flex-1 overflow-x-auto">
-              <div className="flex h-full">
-                {/* Columns */}
-                <div className="flex gap-4 p-4 h-full min-w-max">
-                  {/* Meta Activities Column */}
+        {/* Board content - adjust for full screen */}
+        <div className="flex-1 overflow-hidden px-4 pb-4">
+          {currentView === 'class' ? (
+            <div className="w-full h-full">
+              {/* Main Board Area */}
+              <div className="flex-1 overflow-x-auto">
+                <div className="flex h-full">
+                  {/* Columns */}
+                  <div className="flex gap-4 p-4 h-full min-w-max">
+                    {/* Meta Activities Column */}
+                    <div 
+                      className="flex flex-col h-full border rounded-lg overflow-hidden bg-card min-w-[280px] max-w-[280px]"
+                    >
+                      {/* Column Header */}
+                      <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">Class Activities</span>
+                          <span className="text-xs bg-muted px-2 py-0.5 rounded-full">
+                            {activities['meta-activities']?.length || 0}
+                          </span>
+                        </div>
+                        <div className="flex gap-1">
+                          {/* Filter button - only show when at least one activity is selected */}
+                          {selectedMetaActivities.size > 0 && (
+                            <DropdownMenu open={isStudentFilterOpen} onOpenChange={(open) => {
+                              // When opening the dropdown, initialize temp filters with current selection
+                              if (open) {
+                                setTempStudentFilters(new Set(selectedStudentFilters));
+                              } else {
+                                // Reset search query when closing
+                                setStudentSearchQuery('');
+                              }
+                              setIsStudentFilterOpen(open);
+                            }}>
+                              <DropdownMenuTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-7 w-7 relative"
+                                >
+                                  <Filter className="h-4 w-4" />
+                                  {selectedStudentFilters.size > 0 && (
+                                    <motion.span 
+                                      initial={{ scale: 0 }}
+                                      animate={{ scale: 1 }}
+                                      className="absolute -top-1 -right-1 bg-primary text-[10px] text-primary-foreground rounded-full h-4 w-4 flex items-center justify-center"
+                                    >
+                                      {selectedStudentFilters.size}
+                                    </motion.span>
+                                  )}
+                                  <span className="sr-only">Filter by student</span>
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-56">
+                                <motion.div 
+                                  initial={{ opacity: 0, y: -5 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  className="p-2"
+                                >
+                                  <h4 className="font-medium text-sm mb-2">Filter by student</h4>
+                                  
+                                  {/* Search input for students */}
+                                  <div className="mb-3 relative">
+                                    <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                                    <Input
+                                      placeholder="Search students..."
+                                      value={studentSearchQuery}
+                                      onChange={(e) => setStudentSearchQuery(e.target.value)}
+                                      className="pl-7 h-7 text-xs"
+                                    />
+                                  </div>
+                                  
+                                  <div className="max-h-[200px] overflow-y-auto">
+                                    {/* Get all unique students from selected activities */}
+                                    {getUniqueStudentsFromSelectedActivities().length > 0 ? (
+                                      <div className="space-y-2">
+                                        {/* Select All option */}
+                                        <div className="flex items-center gap-2 border-b pb-2 mb-2">
+                                          <Checkbox 
+                                            id="student-filter-select-all" 
+                                            checked={tempStudentFilters.size === getUniqueStudentsFromSelectedActivities().length}
+                                            onCheckedChange={(checked) => {
+                                              if (checked) {
+                                                // Select all students
+                                                const allStudents = getUniqueStudentsFromSelectedActivities();
+                                                const allIds = new Set(allStudents.map(s => s._id));
+                                                setTempStudentFilters(allIds);
+                                              } else {
+                                                // Clear all selections
+                                                setTempStudentFilters(new Set());
+                                              }
+                                            }}
+                                          />
+                                          <label 
+                                            htmlFor="student-filter-select-all" 
+                                            className="text-sm font-medium cursor-pointer"
+                                          >
+                                            Select All
+                                          </label>
+                                        </div>
+                                        
+                                        {getUniqueStudentsFromSelectedActivities()
+                                          .filter(student => 
+                                            !studentSearchQuery || 
+                                            student.name.toLowerCase().includes(studentSearchQuery.toLowerCase())
+                                          )
+                                          .map(student => (
+                                            <div key={student._id} className="flex items-center gap-2">
+                                              <Checkbox 
+                                                id={`student-filter-${student._id}`} 
+                                                checked={tempStudentFilters.has(student._id)}
+                                                onCheckedChange={(checked) => {
+                                                  const newFilters = new Set(tempStudentFilters);
+                                                  if (checked) {
+                                                    newFilters.add(student._id);
+                                                  } else {
+                                                    newFilters.delete(student._id);
+                                                  }
+                                                  setTempStudentFilters(newFilters);
+                                                }}
+                                              />
+                                              <label 
+                                                htmlFor={`student-filter-${student._id}`} 
+                                                className="text-sm cursor-pointer flex items-center gap-2"
+                                              >
+                                                <Avatar className="h-5 w-5">
+                                                  <AvatarFallback className="text-[9px]">
+                                                    {student.name.substring(0, 2).toUpperCase()}
+                                                  </AvatarFallback>
+                                                </Avatar>
+                                                {student.name}
+                                              </label>
+                                            </div>
+                                          ))}
+                                      </div>
+                                    ) : (
+                                      <div className="text-xs text-muted-foreground text-center py-2">
+                                        No students available
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="mt-4 flex items-center justify-between">
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      onClick={() => setTempStudentFilters(new Set())}
+                                      disabled={tempStudentFilters.size === 0}
+                                    >
+                                      Clear all
+                                    </Button>
+                                    <div className="flex gap-2">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm"
+                                        onClick={() => setIsStudentFilterOpen(false)}
+                                      >
+                                        Cancel
+                                      </Button>
+                                      <Button 
+                                        variant="default" 
+                                        size="sm"
+                                        onClick={() => {
+                                          // Apply the temporary filters to the actual filters
+                                          setSelectedStudentFilters(new Set(tempStudentFilters));
+                                          setIsStudentFilterOpen(false);
+                                        }}
+                                      >
+                                        Apply
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </motion.div>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-7 w-7" 
+                            onClick={selectAllMetaActivities}
+                            disabled={Object.values(isLoadingAssignments).some(loading => loading)}
+                          >
+                            {activities['meta-activities']?.length > 0 && 
+                             selectedMetaActivities.size === activities['meta-activities']?.length ? (
+                              <CheckSquare className="h-4 w-4" />
+                            ) : (
+                              <Square className="h-4 w-4" />
+                            )}
+                            <span className="sr-only">Select All</span>
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      {/* Search Bar */}
+                      <div className="px-3 py-2 border-b">
+                        <div className="relative">
+                          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Search activities..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-8 h-8 text-sm"
+                          />
+                        </div>
+                      </div>
+                      
+                      {/* Activities List */}
+                      <div className="flex-1 p-2 overflow-y-auto max-h-[calc(100vh-180px)]">
+                        <AnimatePresence>
+                          {isLoadingActivities ? (
+                            // Skeleton loaders for activities
+                            Array(3).fill(0).map((_, index) => (
+                              <motion.div 
+                                key={`skeleton-${index}`}
+                                initial={{ opacity: 0, y: 5 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -5 }}
+                                transition={{ duration: 0.2, delay: index * 0.05 }}
+                                className="mb-2 p-2 border rounded-md animate-pulse"
+                              >
+                                <div className="h-4 w-3/4 bg-muted-foreground/20 rounded mb-2"></div>
+                                <div className="flex justify-between items-center">
+                                  <div className="h-3 w-1/4 bg-muted-foreground/15 rounded"></div>
+                                  <div className="h-3 w-1/6 bg-muted-foreground/15 rounded"></div>
+                                </div>
+                              </motion.div>
+                            ))
+                          ) : getFilteredMetaActivities().length === 0 ? (
+                            // No activities or no search results
+                            <motion.div
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              className="flex flex-col items-center justify-center h-full text-sm text-muted-foreground p-4 text-center"
+                            >
+                              {searchQuery ? (
+                                <>
+                                  <Filter className="h-10 w-10 text-muted-foreground/20 mb-2" />
+                                  <p>No activities match your search</p>
+                                  <Button 
+                                    variant="link" 
+                                    className="text-xs mt-1 h-auto p-0" 
+                                    onClick={() => setSearchQuery('')}
+                                  >
+                                    Clear search
+                                  </Button>
+                                </>
+                              ) : (
+                                <>
+                                  <AlertCircle className="h-10 w-10 text-muted-foreground/20 mb-2" />
+                                  <p>No class activities available</p>
+                                </>
+                              )}
+                            </motion.div>
+                          ) : (
+                            // Activity list
+                            getFilteredMetaActivities().map((activity, index) => (
+                              <MetaActivityCard
+                                key={activity._id}
+                                activity={activity}
+                                isSelected={selectedMetaActivities.has(activity._id)}
+                                isLoading={isLoadingAssignments[activity._id]}
+                                onSelect={toggleMetaActivitySelection}
+                                onManageStudents={handleManageStudents}
+                                isPendingDeletion={deletingActivityId === activity._id}
+                              />
+                            ))
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    </div>
+                    
+                    {/* Regular Columns */}
+                    {board.columns.map((column) => (
+                      <div 
+                        key={column.id}
+                        className="flex flex-col h-full border rounded-lg overflow-hidden bg-card min-w-[280px] max-w-[280px]"
+                        onDragOver={(e) => handleDragOver(e, column.id)}
+                        onDrop={(e) => handleDrop(e, column.id)}
+                      >
+                        {/* Column Header */}
+                        <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{column.name}</span>
+                            <span className="text-xs bg-muted px-2 py-0.5 rounded-full">
+                              {getColumnBadgeCount(column.id)}
+                            </span>
+                            
+                            {/* Show filtered vs total count when filters are active */}
+                            {currentView === 'class' && selectedStudentFilters.size > 0 && (
+                              <span className="text-xs text-muted-foreground">
+                                {getColumnAssignments(column.id).length}/{getAllColumnAssignments(column.id).length}
+                              </span>
+                            )}
+                          </div>
+                          {/* Student filter badge - only show in class view when filters are active */}
+                          {currentView === 'class' && selectedStudentFilters.size > 0 && (
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.8 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              className="ml-auto mr-2 flex items-center gap-2"
+                            >
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-5 w-5" 
+                                onClick={() => setSelectedStudentFilters(new Set())}
+                                title="Clear filters"
+                              >
+                                <X className="h-3 w-3" />
+                                <span className="sr-only">Clear filters</span>
+                              </Button>
+                              
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge variant="outline" className="flex items-center gap-1 text-xs border-amber-200 text-amber-700 dark:border-amber-800 dark:text-amber-400 cursor-help">
+                                      <Filter className="h-3 w-3" />
+                                      <span>{selectedStudentFilters.size}</span>
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="bottom">
+                                    <p className="text-xs font-medium mb-1">Filtered students:</p>
+                                    <ul className="text-xs space-y-1 max-w-[200px]">
+                                      {Array.from(selectedStudentFilters).map(studentId => {
+                                        const student = getUniqueStudentsFromSelectedActivities().find(s => s._id === studentId);
+                                        return (
+                                          <li key={studentId} className="flex items-center gap-1">
+                                            <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+                                            {student?.name || 'Unknown student'}
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </motion.div>
+                          )}
+                        </div>
+
+                        {/* Activities */}
+                        <div className="flex-1 p-2 overflow-y-auto max-h-[calc(100vh-180px)]">
+                          <AnimatePresence>
+                            {/* Assignments in class view */}
+                            {currentView === 'class' && column.id !== 'meta-activities' && (
+                              <>
+                                {getColumnAssignments(column.id).map((assignment) => (
+                                  <AssignmentCard
+                                    key={assignment._id}
+                                    assignment={assignment}
+                                    activityId={typeof assignment.activityId === 'object' ? assignment.activityId._id : assignment.activityId as string}
+                                    onClick={() => {
+                                      // Handle assignment click - could show details dialog
+                                      toast.info('Assignment details coming soon');
+                                    }}
+                                  />
+                                ))}
+                                
+                                {/* Loading indicator for when assignments are being fetched */}
+                                {selectedMetaActivities.size > 0 && 
+                                 Object.values(isLoadingAssignments).some(loading => loading) && (
+                                  <motion.div 
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    className="flex justify-center items-center p-6 text-sm text-muted-foreground border border-dashed rounded-md"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
+                                      <span>Loading assignments...</span>
+                                    </div>
+                                  </motion.div>
+                                )}
+                                
+                                {/* Empty state for no assignments in a column - only show when not loading */}
+                                {getColumnAssignments(column.id).length === 0 && 
+                                 selectedMetaActivities.size > 0 && 
+                                 !Object.values(isLoadingAssignments).some(loading => loading) && (
+                                  <motion.div 
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    className="flex flex-col items-center p-6 text-sm text-muted-foreground border border-dashed rounded-md"
+                                  >
+                                    {selectedStudentFilters.size > 0 ? (
+                                      <>
+                                        <Filter className="h-4 w-4 mb-2 text-muted-foreground/50" />
+                                        <span>No matching assignments</span>
+                                        <span className="text-xs mt-1">
+                                          Student filter active ({selectedStudentFilters.size})
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span>No assignments in {column.name}</span>
+                                        <span className="text-xs mt-1">Drag assignments here</span>
+                                      </>
+                                    )}
+                                  </motion.div>
+                                )}
+                                
+                                {/* Message to select meta activities - only show when not loading */}
+                                {selectedMetaActivities.size === 0 && 
+                                 !Object.values(isLoadingAssignments).some(loading => loading) && (
+                                  <motion.div 
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    className="flex flex-col items-center p-6 text-sm text-muted-foreground border border-dashed rounded-md"
+                                  >
+                                    <span className="mb-1">Select class activities</span>
+                                    <span className="text-xs">to view student assignments</span>
+                                  </motion.div>
+                                )}
+                              </>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            // Personal view - responsive grid that adjusts to screen width
+            <div className="w-full h-full">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-max">
+                {getColumnsForView().map((column) => (
                   <div 
-                    className="flex flex-col h-full border rounded-lg overflow-hidden bg-card min-w-[280px] max-w-[280px]"
+                    key={column.id}
+                    className="flex flex-col h-full border rounded-lg overflow-hidden bg-card"
+                    onDragOver={(e) => handleDragOver(e, column.id)}
+                    onDrop={(e) => handleDrop(e, column.id)}
                   >
                     {/* Column Header */}
                     <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium">Class Activities</span>
+                        <span className="font-medium">{column.name}</span>
                         <span className="text-xs bg-muted px-2 py-0.5 rounded-full">
-                          {activities['meta-activities']?.length || 0}
+                          {getColumnBadgeCount(column.id)}
                         </span>
                       </div>
-                      <div className="flex gap-1">
-                        {/* Filter button - only show when at least one activity is selected */}
-                        {selectedMetaActivities.size > 0 && (
-                          <DropdownMenu open={isStudentFilterOpen} onOpenChange={(open) => {
-                            // When opening the dropdown, initialize temp filters with current selection
-                            if (open) {
-                              setTempStudentFilters(new Set(selectedStudentFilters));
-                            } else {
-                              // Reset search query when closing
-                              setStudentSearchQuery('');
-                            }
-                            setIsStudentFilterOpen(open);
-                          }}>
-                            <DropdownMenuTrigger asChild>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-7 w-7 relative"
-                              >
-                                <Filter className="h-4 w-4" />
-                                {selectedStudentFilters.size > 0 && (
-                                  <motion.span 
-                                    initial={{ scale: 0 }}
-                                    animate={{ scale: 1 }}
-                                    className="absolute -top-1 -right-1 bg-primary text-[10px] text-primary-foreground rounded-full h-4 w-4 flex items-center justify-center"
-                                  >
-                                    {selectedStudentFilters.size}
-                                  </motion.span>
-                                )}
-                                <span className="sr-only">Filter by student</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-56">
-                              <motion.div 
-                                initial={{ opacity: 0, y: -5 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="p-2"
-                              >
-                                <h4 className="font-medium text-sm mb-2">Filter by student</h4>
-                                
-                                {/* Search input for students */}
-                                <div className="mb-3 relative">
-                                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-                                  <Input
-                                    placeholder="Search students..."
-                                    value={studentSearchQuery}
-                                    onChange={(e) => setStudentSearchQuery(e.target.value)}
-                                    className="pl-7 h-7 text-xs"
-                                  />
-                                </div>
-                                
-                                <div className="max-h-[200px] overflow-y-auto">
-                                  {/* Get all unique students from selected activities */}
-                                  {getUniqueStudentsFromSelectedActivities().length > 0 ? (
-                                    <div className="space-y-2">
-                                      {/* Select All option */}
-                                      <div className="flex items-center gap-2 border-b pb-2 mb-2">
-                                        <Checkbox 
-                                          id="student-filter-select-all" 
-                                          checked={tempStudentFilters.size === getUniqueStudentsFromSelectedActivities().length}
-                                          onCheckedChange={(checked) => {
-                                            if (checked) {
-                                              // Select all students
-                                              const allStudents = getUniqueStudentsFromSelectedActivities();
-                                              const allIds = new Set(allStudents.map(s => s._id));
-                                              setTempStudentFilters(allIds);
-                                            } else {
-                                              // Clear all selections
-                                              setTempStudentFilters(new Set());
-                                            }
-                                          }}
-                                        />
-                                        <label 
-                                          htmlFor="student-filter-select-all" 
-                                          className="text-sm font-medium cursor-pointer"
-                                        >
-                                          Select All
-                                        </label>
-                                      </div>
-                                      
-                                      {getUniqueStudentsFromSelectedActivities()
-                                        .filter(student => 
-                                          !studentSearchQuery || 
-                                          student.name.toLowerCase().includes(studentSearchQuery.toLowerCase())
-                                        )
-                                        .map(student => (
-                                          <div key={student._id} className="flex items-center gap-2">
-                                            <Checkbox 
-                                              id={`student-filter-${student._id}`} 
-                                              checked={tempStudentFilters.has(student._id)}
-                                              onCheckedChange={(checked) => {
-                                                const newFilters = new Set(tempStudentFilters);
-                                                if (checked) {
-                                                  newFilters.add(student._id);
-                                                } else {
-                                                  newFilters.delete(student._id);
-                                                }
-                                                setTempStudentFilters(newFilters);
-                                              }}
-                                            />
-                                            <label 
-                                              htmlFor={`student-filter-${student._id}`} 
-                                              className="text-sm cursor-pointer flex items-center gap-2"
-                                            >
-                                              <Avatar className="h-5 w-5">
-                                                <AvatarFallback className="text-[9px]">
-                                                  {student.name.substring(0, 2).toUpperCase()}
-                                                </AvatarFallback>
-                                              </Avatar>
-                                              {student.name}
-                                            </label>
-                                          </div>
-                                        ))}
-                                    </div>
-                                  ) : (
-                                    <div className="text-xs text-muted-foreground text-center py-2">
-                                      No students available
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="mt-4 flex items-center justify-between">
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm"
-                                    onClick={() => setTempStudentFilters(new Set())}
-                                    disabled={tempStudentFilters.size === 0}
-                                  >
-                                    Clear all
-                                  </Button>
-                                  <div className="flex gap-2">
-                                    <Button 
-                                      variant="ghost" 
-                                      size="sm"
-                                      onClick={() => setIsStudentFilterOpen(false)}
-                                    >
-                                      Cancel
-                                    </Button>
-                                    <Button 
-                                      variant="default" 
-                                      size="sm"
-                                      onClick={() => {
-                                        // Apply the temporary filters to the actual filters
-                                        setSelectedStudentFilters(new Set(tempStudentFilters));
-                                        setIsStudentFilterOpen(false);
-                                      }}
-                                    >
-                                      Apply
-                                    </Button>
-                                  </div>
-                                </div>
-                              </motion.div>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-7 w-7" 
-                          onClick={selectAllMetaActivities}
-                          disabled={Object.values(isLoadingAssignments).some(loading => loading)}
+                      {/* Only show add button in personal view */}
+                      {(currentView as string) !== 'class' && (
+                        <button 
+                          className="text-xs text-muted-foreground hover:text-foreground p-1 rounded"
+                          onClick={() => {
+                            // Pre-select the current column and set the type to personal in the dialog
+                            setPreSelectedColumn(column.id);
+                            setIsCreateActivityOpen(true);
+                          }}
                         >
-                          {activities['meta-activities']?.length > 0 && 
-                           selectedMetaActivities.size === activities['meta-activities']?.length ? (
-                            <CheckSquare className="h-4 w-4" />
-                          ) : (
-                            <Square className="h-4 w-4" />
-                          )}
-                          <span className="sr-only">Select All</span>
-                        </Button>
-                      </div>
+                          +
+                        </button>
+                      )}
                     </div>
-                    
-                    {/* Search Bar */}
-                    <div className="px-3 py-2 border-b">
-                      <div className="relative">
-                        <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          placeholder="Search activities..."
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          className="pl-8 h-8 text-sm"
-                        />
-                      </div>
-                    </div>
-                    
-                    {/* Activities List */}
+
+                    {/* Activities */}
                     <div className="flex-1 p-2 overflow-y-auto max-h-[calc(100vh-180px)]">
-                      <AnimatePresence>
+                      <div className="space-y-2">
                         {isLoadingActivities ? (
-                          // Skeleton loaders for activities
+                          // Activity loading skeletons
                           Array(3).fill(0).map((_, index) => (
-                            <motion.div 
-                              key={`skeleton-${index}`}
-                              initial={{ opacity: 0, y: 5 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: -5 }}
-                              transition={{ duration: 0.2, delay: index * 0.05 }}
-                              className="mb-2 p-2 border rounded-md animate-pulse"
-                            >
+                            <div key={`skeleton-${index}`} className="rounded-md border p-2 animate-pulse">
                               <div className="h-4 w-3/4 bg-muted-foreground/20 rounded mb-2"></div>
                               <div className="flex justify-between items-center">
                                 <div className="h-3 w-1/4 bg-muted-foreground/15 rounded"></div>
                                 <div className="h-3 w-1/6 bg-muted-foreground/15 rounded"></div>
                               </div>
-                            </motion.div>
+                            </div>
                           ))
-                        ) : getFilteredMetaActivities().length === 0 ? (
-                          // No activities or no search results
-                          <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="flex flex-col items-center justify-center h-full text-sm text-muted-foreground p-4 text-center"
-                          >
-                            {searchQuery ? (
-                              <>
-                                <Filter className="h-10 w-10 text-muted-foreground/20 mb-2" />
-                                <p>No activities match your search</p>
-                                <Button 
-                                  variant="link" 
-                                  className="text-xs mt-1 h-auto p-0" 
-                                  onClick={() => setSearchQuery('')}
-                                >
-                                  Clear search
-                                </Button>
-                              </>
-                            ) : (
-                              <>
-                                <AlertCircle className="h-10 w-10 text-muted-foreground/20 mb-2" />
-                                <p>No class activities available</p>
-                              </>
-                            )}
-                          </motion.div>
                         ) : (
-                          // Activity list
-                          getFilteredMetaActivities().map((activity, index) => (
-                            <MetaActivityCard
-                              key={activity._id}
-                              activity={activity}
-                              isSelected={selectedMetaActivities.has(activity._id)}
-                              isLoading={isLoadingAssignments[activity._id]}
-                              onSelect={toggleMetaActivitySelection}
-                              onManageStudents={handleManageStudents}
-                            />
-                          ))
+                          // Actual activities filtered by view
+                          getFilteredActivities(column.id)?.map((activity) => {
+                            // Debug check
+                            if (!activity || !activity._id) {
+                              console.warn('Invalid activity detected in column', column.id, activity);
+                              return null; // Skip rendering this invalid activity
+                            }
+                            
+                            return (
+                              <KanbanActivityCard 
+                                key={activity._id}
+                                activity={activity}
+                                onClick={handleOpenActivityDetail}
+                                isPendingDeletion={deletingActivityId === activity._id}
+                                isMetaActivity={activity.type === 'meta'}
+                                onDragStart={(e, activity) => {
+                                  if (activity.type === 'meta') return;
+                                  
+                                  handleDragStart(activity._id, column.id);
+                                  // Set ghost image data
+                                  e.dataTransfer.setData('text/plain', activity._id);
+                                }}
+                              />
+                            );
+                          })
                         )}
-                      </AnimatePresence>
+
+                        {/* Empty state */}
+                        {!isLoadingActivities && (!getFilteredActivities(column.id) || getFilteredActivities(column.id).length === 0) && (
+                          <div className="border border-dashed rounded-md p-6 flex flex-col items-center justify-center text-sm text-muted-foreground">
+                            <span>No personal activities</span>
+                            <span className="text-xs mt-1">Drop activities here</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  
-                  {/* Regular Columns */}
-                  {board.columns.map((column) => (
-                    <div 
-                      key={column.id}
-                      className="flex flex-col h-full border rounded-lg overflow-hidden bg-card min-w-[280px] max-w-[280px]"
-                      onDragOver={(e) => handleDragOver(e, column.id)}
-                      onDrop={(e) => handleDrop(e, column.id)}
-                    >
-                      {/* Column Header */}
-                      <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{column.name}</span>
-                          <span className="text-xs bg-muted px-2 py-0.5 rounded-full">
-                            {getColumnBadgeCount(column.id)}
-                          </span>
-                          
-                          {/* Show filtered vs total count when filters are active */}
-                          {currentView === 'class' && selectedStudentFilters.size > 0 && (
-                            <span className="text-xs text-muted-foreground">
-                              {getColumnAssignments(column.id).length}/{getAllColumnAssignments(column.id).length}
-                            </span>
-                          )}
-                        </div>
-                        {/* Student filter badge - only show in class view when filters are active */}
-                        {currentView === 'class' && selectedStudentFilters.size > 0 && (
-                          <motion.div
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            className="ml-auto mr-2 flex items-center gap-2"
-                          >
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-5 w-5" 
-                              onClick={() => setSelectedStudentFilters(new Set())}
-                              title="Clear filters"
-                            >
-                              <X className="h-3 w-3" />
-                              <span className="sr-only">Clear filters</span>
-                            </Button>
-                            
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Badge variant="outline" className="flex items-center gap-1 text-xs border-amber-200 text-amber-700 dark:border-amber-800 dark:text-amber-400 cursor-help">
-                                    <Filter className="h-3 w-3" />
-                                    <span>{selectedStudentFilters.size}</span>
-                                  </Badge>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom">
-                                  <p className="text-xs font-medium mb-1">Filtered students:</p>
-                                  <ul className="text-xs space-y-1 max-w-[200px]">
-                                    {Array.from(selectedStudentFilters).map(studentId => {
-                                      const student = getUniqueStudentsFromSelectedActivities().find(s => s._id === studentId);
-                                      return (
-                                        <li key={studentId} className="flex items-center gap-1">
-                                          <span className="h-2 w-2 rounded-full bg-amber-500"></span>
-                                          {student?.name || 'Unknown student'}
-                                        </li>
-                                      );
-                                    })}
-                                  </ul>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </motion.div>
-                        )}
-                      </div>
-
-                      {/* Activities */}
-                      <div className="flex-1 p-2 overflow-y-auto max-h-[calc(100vh-180px)]">
-                        <AnimatePresence>
-                          {/* Assignments in class view */}
-                          {currentView === 'class' && column.id !== 'meta-activities' && (
-                            <>
-                              {getColumnAssignments(column.id).map((assignment) => (
-                                <AssignmentCard
-                                  key={assignment._id}
-                                  assignment={assignment}
-                                  activityId={typeof assignment.activityId === 'object' ? assignment.activityId._id : assignment.activityId as string}
-                                  onClick={() => {
-                                    // Handle assignment click - could show details dialog
-                                    toast.info('Assignment details coming soon');
-                                  }}
-                                />
-                              ))}
-                              
-                              {/* Loading indicator for when assignments are being fetched */}
-                              {selectedMetaActivities.size > 0 && 
-                               Object.values(isLoadingAssignments).some(loading => loading) && (
-                                <motion.div 
-                                  initial={{ opacity: 0 }}
-                                  animate={{ opacity: 1 }}
-                                  exit={{ opacity: 0 }}
-                                  className="flex justify-center items-center p-6 text-sm text-muted-foreground border border-dashed rounded-md"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
-                                    <span>Loading assignments...</span>
-                                  </div>
-                                </motion.div>
-                              )}
-                              
-                              {/* Empty state for no assignments in a column - only show when not loading */}
-                              {getColumnAssignments(column.id).length === 0 && 
-                               selectedMetaActivities.size > 0 && 
-                               !Object.values(isLoadingAssignments).some(loading => loading) && (
-                                <motion.div 
-                                  initial={{ opacity: 0 }}
-                                  animate={{ opacity: 1 }}
-                                  exit={{ opacity: 0 }}
-                                  className="flex flex-col items-center p-6 text-sm text-muted-foreground border border-dashed rounded-md"
-                                >
-                                  {selectedStudentFilters.size > 0 ? (
-                                    <>
-                                      <Filter className="h-4 w-4 mb-2 text-muted-foreground/50" />
-                                      <span>No matching assignments</span>
-                                      <span className="text-xs mt-1">
-                                        Student filter active ({selectedStudentFilters.size})
-                                      </span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <span>No assignments in {column.name}</span>
-                                      <span className="text-xs mt-1">Drag assignments here</span>
-                                    </>
-                                  )}
-                                </motion.div>
-                              )}
-                              
-                              {/* Message to select meta activities - only show when not loading */}
-                              {selectedMetaActivities.size === 0 && 
-                               !Object.values(isLoadingAssignments).some(loading => loading) && (
-                                <motion.div 
-                                  initial={{ opacity: 0 }}
-                                  animate={{ opacity: 1 }}
-                                  exit={{ opacity: 0 }}
-                                  className="flex flex-col items-center p-6 text-sm text-muted-foreground border border-dashed rounded-md"
-                                >
-                                  <span className="mb-1">Select class activities</span>
-                                  <span className="text-xs">to view student assignments</span>
-                                </motion.div>
-                              )}
-                            </>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                ))}
               </div>
             </div>
-          </div>
-        ) : (
-          // Personal view - responsive grid that adjusts to screen width
-          <div className="w-full h-full">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-max">
-              {getColumnsForView().map((column) => (
-                <div 
-                  key={column.id}
-                  className="flex flex-col h-full border rounded-lg overflow-hidden bg-card"
-                  onDragOver={(e) => handleDragOver(e, column.id)}
-                  onDrop={(e) => handleDrop(e, column.id)}
-                >
-                  {/* Column Header */}
-                  <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{column.name}</span>
-                      <span className="text-xs bg-muted px-2 py-0.5 rounded-full">
-                        {getColumnBadgeCount(column.id)}
-                      </span>
-                    </div>
-                    {/* Only show add button in personal view */}
-                    {(currentView as string) !== 'class' && (
-                      <button 
-                        className="text-xs text-muted-foreground hover:text-foreground p-1 rounded"
-                        onClick={() => {
-                          // Pre-select the current column and set the type to personal in the dialog
-                          setPreSelectedColumn(column.id);
-                          setIsCreateActivityOpen(true);
-                        }}
-                      >
-                        +
-                      </button>
-                    )}
-                  </div>
+          )}
+        </div>
 
-                  {/* Activities */}
-                  <div className="flex-1 p-2 overflow-y-auto max-h-[calc(100vh-180px)]">
-                    <div className="space-y-2">
-                      {isLoadingActivities ? (
-                        // Activity loading skeletons
-                        Array(3).fill(0).map((_, index) => (
-                          <div key={`skeleton-${index}`} className="rounded-md border p-2 animate-pulse">
-                            <div className="h-4 w-3/4 bg-muted-foreground/20 rounded mb-2"></div>
-                            <div className="flex justify-between items-center">
-                              <div className="h-3 w-1/4 bg-muted-foreground/15 rounded"></div>
-                              <div className="h-3 w-1/6 bg-muted-foreground/15 rounded"></div>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        // Actual activities filtered by view
-                        getFilteredActivities(column.id)?.map((activity) => {
-                          // Debug check
-                          if (!activity || !activity._id) {
-                            console.warn('Invalid activity detected in column', column.id, activity);
-                            return null; // Skip rendering this invalid activity
-                          }
-                          
-                          return (
-                            <KanbanActivityCard 
-                              key={activity._id}
-                              activity={activity}
-                              onClick={handleOpenActivityDetail}
-                              isMetaActivity={activity.type === 'meta'}
-                              onDragStart={(e, activity) => {
-                                if (activity.type === 'meta') return;
-                                
-                                handleDragStart(activity._id, column.id);
-                                // Set ghost image data
-                                e.dataTransfer.setData('text/plain', activity._id);
-                              }}
-                            />
-                          );
-                        })
-                      )}
-
-                      {/* Empty state */}
-                      {!isLoadingActivities && (!getFilteredActivities(column.id) || getFilteredActivities(column.id).length === 0) && (
-                        <div className="border border-dashed rounded-md p-6 flex flex-col items-center justify-center text-sm text-muted-foreground">
-                          <span>No personal activities</span>
-                          <span className="text-xs mt-1">Drop activities here</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+        {/* Activity Detail Dialog */}
+        {selectedActivity && (
+          <ActivityDetailDialog 
+            isOpen={isActivityDetailOpen} 
+            onOpenChange={setIsActivityDetailOpen} 
+            activity={selectedActivity}
+            columns={board?.columns || []}
+            students={students}
+            onActivityDeleted={handleActivityDeleted}
+            onDeletePending={setDeletingActivityId}
+          />
         )}
-      </div>
 
-      {/* Activity Detail Dialog */}
-      {selectedActivity && (
-        <ActivityDetailDialog 
-          isOpen={isActivityDetailOpen} 
-          onOpenChange={setIsActivityDetailOpen} 
-          activity={selectedActivity}
+        {/* Create Activity Dialog */}
+        <CreateActivityDialog
+          isOpen={isCreateActivityOpen}
+          onOpenChange={(open) => {
+            setIsCreateActivityOpen(open);
+            if (!open) {
+              // Reset pre-selected column when dialog closes
+              setPreSelectedColumn(null);
+            }
+          }}
+          boardId={boardId}
           columns={board?.columns || []}
+          students={students as any}
+          onActivityCreated={handleActivityCreated}
+          showMetaOption={true} // Always show meta option
+          initialColumnId={preSelectedColumn}
         />
-      )}
 
-      {/* Create Activity Dialog */}
-      <CreateActivityDialog
-        isOpen={isCreateActivityOpen}
-        onOpenChange={(open) => {
-          setIsCreateActivityOpen(open);
-          if (!open) {
-            // Reset pre-selected column when dialog closes
-            setPreSelectedColumn(null);
-          }
-        }}
-        boardId={boardId}
-        columns={board?.columns || []}
-        students={students as any}
-        onActivityCreated={handleActivityCreated}
-        showMetaOption={true} // Always show meta option
-        initialColumnId={preSelectedColumn}
-      />
-
-      {/* ManageStudentsDialog */}
-      <ManageStudentsDialog
-        isOpen={isManageStudentsOpen}
-        onOpenChange={setIsManageStudentsOpen}
-        activity={selectedActivity}
-        classStudents={students}
-        onStudentsUpdated={handleStudentsUpdated}
-      />
-    </div>
+        {/* ManageStudentsDialog */}
+        <ManageStudentsDialog
+          isOpen={isManageStudentsOpen}
+          onOpenChange={setIsManageStudentsOpen}
+          activity={selectedActivity}
+          classStudents={students}
+          onStudentsUpdated={handleStudentsUpdated}
+        />
+      </div>
+    </TagsProvider>
   );
 }

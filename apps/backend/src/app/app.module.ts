@@ -8,6 +8,7 @@ import { ClassesModule } from './classes/classes.module';
 import { BoardsModule } from './boards/boards.module';
 import { ActivitiesModule } from './activities/activities.module';
 import { AssignmentsModule } from './assignments/assignments.module';
+import { TagsModule } from './tags/tags.module';
 
 @Module({
   imports: [
@@ -17,7 +18,8 @@ import { AssignmentsModule } from './assignments/assignments.module';
     ClassesModule,
     BoardsModule,
     ActivitiesModule,
-    AssignmentsModule
+    AssignmentsModule,
+    TagsModule
   ],
   controllers: [AppController],
   providers: [AppService],

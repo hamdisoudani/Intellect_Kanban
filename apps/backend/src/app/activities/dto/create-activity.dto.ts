@@ -1,6 +1,6 @@
-import { IsString, IsOptional, IsDateString, IsMongoId, IsIn, IsArray, Validate, ValidationArguments, ValidatorConstraint, ValidatorConstraintInterface, registerDecorator, ValidationOptions } from 'class-validator';
+import { IsString, IsOptional, IsDateString, IsMongoId, IsIn, IsArray, Validate, ValidationArguments, ValidatorConstraint, ValidatorConstraintInterface, registerDecorator, ValidationOptions, IsEnum, IsNumber, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ColumnTransition } from '../schemas/activity.schema';
+import { ColumnTransition, DifficultyLevel } from '../schemas/activity.schema';
 
 // Custom validator for assignedStudents/type relationship
 @ValidatorConstraint({ name: 'ActivityTypeAssignedStudents', async: false })
@@ -143,4 +143,29 @@ export class CreateActivityDto {
   @IsMongoId({ each: true })
   @ActivityTypeAssignedStudents({ message: 'Invalid assigned students for activity type.' })
   assignedStudents?: string[];
+  
+  /**
+   * Tags associated with the activity
+   */
+  @IsOptional()
+  @IsArray()
+  @IsMongoId({ each: true })
+  tags?: string[];
+  
+  /**
+   * Difficulty level of the activity
+   */
+  @IsOptional()
+  @IsEnum(DifficultyLevel)
+  difficultyLevel?: DifficultyLevel;
+  
+  /**
+   * Estimated time to complete in minutes
+   */
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(1440) // Max 24 hours
+  @Type(() => Number)
+  estimatedTimeMinutes?: number;
 } 

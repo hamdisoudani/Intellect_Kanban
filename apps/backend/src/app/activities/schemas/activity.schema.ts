@@ -2,12 +2,21 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
 import { User } from '../../users/schemas/user.schema';
 import { Board } from '../../boards/schemas/board.schema';
+import { Tag } from '../../tags/schemas/tag.schema';
 
 export type ActivityDocument = Activity & Document;
 
 export interface ColumnTransition {
   columnId: string;
   enteredAt: Date;
+}
+
+export enum DifficultyLevel {
+  FOUNDATIONAL = 'foundational',
+  DEVELOPING = 'developing',
+  PROFICIENT = 'proficient',
+  ADVANCED = 'advanced',
+  MASTERY = 'mastery'
 }
 
 @Schema({ timestamps: true })
@@ -74,6 +83,31 @@ export class Activity {
   
   @Prop({ default: false })
   isArchived!: boolean;
+  
+  /**
+   * Tags associated with this activity
+   */
+  @Prop({ 
+    type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Tag' }],
+    default: []
+  })
+  tags!: Tag[];
+  
+  /**
+   * Difficulty level of the activity
+   */
+  @Prop({ 
+    type: String,
+    enum: Object.values(DifficultyLevel),
+    default: DifficultyLevel.DEVELOPING
+  })
+  difficultyLevel?: string;
+  
+  /**
+   * Estimated time to complete (in minutes)
+   */
+  @Prop()
+  estimatedTimeMinutes?: number;
 }
 
 export const ActivitySchema = SchemaFactory.createForClass(Activity);
@@ -81,4 +115,5 @@ export const ActivitySchema = SchemaFactory.createForClass(Activity);
 // Add index for efficient querying
 ActivitySchema.index({ boardId: 1 });
 ActivitySchema.index({ boardId: 1, columnId: 1 });
-ActivitySchema.index({ type: 1, boardId: 1 }); 
+ActivitySchema.index({ type: 1, boardId: 1 });
+ActivitySchema.index({ tags: 1 }); // Add index for tag-based querying 

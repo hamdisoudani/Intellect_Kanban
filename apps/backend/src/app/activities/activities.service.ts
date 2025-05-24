@@ -8,6 +8,8 @@ import { Board } from '../boards/schemas/board.schema';
 import { UsersService } from '../users/users.service';
 import { ClassesService } from '../classes/classes.service';
 import { AssignmentsService } from '../assignments/assignments.service';
+import { TagsService } from '../tags/tags.service';
+import { TagDocument } from '../tags/schemas/tag.schema';
 
 @Injectable()
 export class ActivitiesService {
@@ -17,7 +19,50 @@ export class ActivitiesService {
     private readonly usersService: UsersService,
     private readonly classesService: ClassesService,
     private readonly assignmentsService: AssignmentsService,
+    private readonly tagsService: TagsService,
   ) {}
+
+  /**
+   * Validate tags for an activity
+   * - Ensure tags exist and belong to the teacher
+   * - Ensure activity has maximum 5 tags
+   * - Ensure no duplicates
+   */
+  async validateTags(tagIds: string[], userId: string): Promise<Types.ObjectId[]> {
+    if (!tagIds || tagIds.length === 0) {
+      return [];
+    }
+
+    // Check maximum tags limit
+    if (tagIds.length > 5) {
+      throw new BadRequestException('Activities can have a maximum of 5 tags');
+    }
+
+    // Remove duplicates
+    const uniqueTagIds = [...new Set(tagIds)];
+    
+    // Validate each tag
+    const validatedTags: Types.ObjectId[] = [];
+    for (const tagId of uniqueTagIds) {
+      try {
+        const tag = await this.tagsService.findOne(tagId);
+        
+        // Check if the tag belongs to the user
+        if (tag.createdBy.toString() !== userId) {
+          throw new BadRequestException(`Tag with ID ${tagId} does not belong to you`);
+        }
+        
+        validatedTags.push(new Types.ObjectId(tagId));
+      } catch (error) {
+        if (error instanceof NotFoundException) {
+          throw new BadRequestException(`Tag with ID ${tagId} does not exist`);
+        }
+        throw error;
+      }
+    }
+    
+    return validatedTags;
+  }
 
   /**
    * Create a new activity
@@ -43,6 +88,10 @@ export class ActivitiesService {
           throw new BadRequestException('Due date must be in the future.');
         }
       }
+
+      // Validate tags if provided
+      const validatedTags = await this.validateTags(createActivityDto.tags || [], userId);
+      
       // Handle personal and meta types
       if (createActivityDto.type === 'personal') {
         if (createActivityDto.assignedStudents && createActivityDto.assignedStudents.length > 0) {
@@ -65,8 +114,21 @@ export class ActivitiesService {
           columnHistory,
           createdBy: new Types.ObjectId(userId),
           assignedStudents: [],
+          tags: validatedTags,
         });
-        return await newActivity.save();
+        const savedActivity = await newActivity.save();
+        
+        // Populate the tag information before returning
+        const populatedActivity = await this.activityModel.findById(savedActivity._id)
+          .populate('createdBy', 'name _id')
+          .populate('tags', '_id name color')
+          .exec();
+
+        if (!populatedActivity) {
+          return savedActivity; // Fallback to unpopulated activity if population fails
+        }
+
+        return populatedActivity;
       }
       if (createActivityDto.type === 'meta') {
         // assignedStudents can be empty or undefined
@@ -103,8 +165,10 @@ export class ActivitiesService {
           ...createActivityDto,
           createdBy: new Types.ObjectId(userId),
           assignedStudents: validStudentIds,
+          tags: validatedTags,
         });
         const savedActivity = await newActivity.save();
+        
         // Create assignments for each student if any
         if (validStudentIds.length > 0) {
           await this.assignmentsService.createBatch({
@@ -112,7 +176,19 @@ export class ActivitiesService {
             studentIds: validStudentIds.map(id => id.toString()),
           }, board._id.toString());
         }
-        return savedActivity;
+        
+        // Populate the tag information before returning
+        const populatedActivity = await this.activityModel.findById(savedActivity._id)
+          .populate('createdBy', 'name _id')
+          .populate('assignedStudents', 'name _id')
+          .populate('tags', '_id name color')
+          .exec();
+
+        if (!populatedActivity) {
+          return savedActivity; // Fallback to unpopulated activity if population fails
+        }
+
+        return populatedActivity;
       }
       throw new BadRequestException('Invalid activity type.');
     } catch (error: any) {
@@ -170,6 +246,7 @@ export class ActivitiesService {
       })
         .populate('createdBy', 'name _id')
         .populate('assignedStudents', 'name _id')
+        .populate('tags', '_id name color') // Only populate required tag fields
         .exec();
     } catch (error: any) {
       // If error is already a NestJS HTTP exception, rethrow it
@@ -189,6 +266,7 @@ export class ActivitiesService {
       const activity = await this.activityModel.findById(id)
         .populate('createdBy', 'name _id')
         .populate('assignedStudents', 'name _id')
+        .populate('tags', '_id name color') // Only populate required tag fields
         .exec();
         
       if (!activity) {
@@ -536,5 +614,85 @@ export class ActivitiesService {
       
       throw new BadRequestException('Failed to update activity column: ' + error.message);
     }
+  }
+
+  /**
+   * Add tags to an activity
+   */
+  async addTags(activityId: string, tagIds: string[], userId: string): Promise<ActivityDocument> {
+    // Find the activity
+    const activity = await this.findOne(activityId);
+    
+    // Check if user has permission to modify this activity
+    const createdById = typeof activity.createdBy === 'object' && activity.createdBy !== null 
+      ? (activity.createdBy as any)._id.toString() 
+      : String(activity.createdBy);
+      
+    if (createdById !== userId) {
+      throw new ForbiddenException('You can only add tags to activities you created');
+    }
+    
+    // Get current tags
+    const currentTagIds = activity.tags.map(tag => {
+      if (typeof tag === 'object' && tag !== null) {
+        return (tag as any)._id.toString();
+      }
+      return (tag as any).toString();
+    });
+    
+    // Filter out tags that are already on the activity
+    const newTagIds = tagIds.filter(id => !currentTagIds.includes(id));
+    
+    // If no new tags, return the activity as is
+    if (newTagIds.length === 0) {
+      return activity;
+    }
+    
+    // Check if adding these tags would exceed the limit
+    if (currentTagIds.length + newTagIds.length > 5) {
+      throw new BadRequestException(`Cannot add ${newTagIds.length} tags - would exceed the limit of 5 tags per activity (currently has ${currentTagIds.length})`);
+    }
+    
+    // Validate the new tags
+    const validatedNewTags = await this.validateTags(newTagIds, userId);
+    
+    // Add the tags to the activity
+    const currentTags = activity.tags as any[];
+    activity.tags = [...currentTags, ...validatedNewTags] as any;
+    
+    // Save and return the updated activity
+    return activity.save();
+  }
+  
+  /**
+   * Remove tags from an activity
+   */
+  async removeTags(activityId: string, tagIds: string[], userId: string): Promise<ActivityDocument> {
+    // Find the activity
+    const activity = await this.findOne(activityId);
+    
+    // Check if user has permission to modify this activity
+    const createdById = typeof activity.createdBy === 'object' && activity.createdBy !== null 
+      ? (activity.createdBy as any)._id.toString() 
+      : String(activity.createdBy);
+      
+    if (createdById !== userId) {
+      throw new ForbiddenException('You can only remove tags from activities you created');
+    }
+    
+    // Convert tags to string IDs for easier comparison
+    const tagObjectIds = tagIds.map(id => new Types.ObjectId(id));
+    
+    // Remove the specified tags
+    activity.tags = (activity.tags as any[]).filter(tag => {
+      const tagId = typeof tag === 'object' && tag !== null 
+        ? (tag as any)._id 
+        : tag;
+      
+      return !tagObjectIds.some(id => id.equals(tagId));
+    }) as any;
+    
+    // Save and return the updated activity
+    return activity.save();
   }
 } 

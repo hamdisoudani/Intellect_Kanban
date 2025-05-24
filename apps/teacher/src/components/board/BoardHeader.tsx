@@ -3,43 +3,27 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
   Button,
-  Badge,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  Dialog,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogContent,
-  DialogFooter,
-  DialogTrigger,
   Input,
-  Label,
   Avatar,
   AvatarImage,
   AvatarFallback
 } from '@intellect-kanban/ui';
 import { Board } from '@/utils/types';
 import { 
-  MoreHorizontalIcon, 
-  PenIcon, 
   SettingsIcon, 
   ChevronLeftIcon, 
   PlusCircleIcon,
-  ColumnsIcon,
-  UsersIcon,
   PencilIcon,
   CheckIcon,
-  Link2Icon,
   ShareIcon,
   TrashIcon,
   User,
   Users,
-  LogOut,
-  ChevronLeft,
-  ChevronRight
+  LogOut
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -83,7 +67,6 @@ export function BoardHeader({
 }: BoardHeaderProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [boardTitle, setBoardTitle] = useState(board.name);
-  const [boardDescription, setBoardDescription] = useState(board.description || '');
   const [user, setUser] = useState<any>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -229,10 +212,10 @@ export function BoardHeader({
               className="h-8 text-xs"
               asChild
             >
-              <a href={`/dashboard/classes/${getClassIdString(board.classId)}`}>
+              <Link href={`/dashboard/classes/${getClassIdString(board.classId)}`}>
                 <ChevronLeftIcon className="mr-1.5 h-3.5 w-3.5" />
                 Back to class
-              </a>
+              </Link>
             </Button>
           )}
           

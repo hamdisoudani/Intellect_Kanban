@@ -208,4 +208,58 @@ export class ActivitiesController {
       throw error;
     }
   }
+
+  /**
+   * Add tags to an activity
+   */
+  @Post(':id/tags')
+  @Roles(UserRole.TEACHER)
+  @HttpCode(HttpStatus.OK)
+  async addTags(
+    @Param('id') id: string,
+    @Body() body: { tagIds: string[] },
+    @Req() req: RequestWithUser
+  ) {
+    if (!body.tagIds || !Array.isArray(body.tagIds) || body.tagIds.length === 0) {
+      throw new BadRequestException('Tag IDs must be provided as an array with at least one ID');
+    }
+    
+    try {
+      return await this.activitiesService.addTags(
+        id, 
+        body.tagIds,
+        req.user.userId
+      );
+    } catch (error) {
+      // Controller level error handling
+      throw error;
+    }
+  }
+
+  /**
+   * Remove tags from an activity
+   */
+  @Delete(':id/tags')
+  @Roles(UserRole.TEACHER)
+  @HttpCode(HttpStatus.OK)
+  async removeTags(
+    @Param('id') id: string,
+    @Body() body: { tagIds: string[] },
+    @Req() req: RequestWithUser
+  ) {
+    if (!body.tagIds || !Array.isArray(body.tagIds) || body.tagIds.length === 0) {
+      throw new BadRequestException('Tag IDs must be provided as an array with at least one ID');
+    }
+    
+    try {
+      return await this.activitiesService.removeTags(
+        id, 
+        body.tagIds,
+        req.user.userId
+      );
+    } catch (error) {
+      // Controller level error handling
+      throw error;
+    }
+  }
 } 
