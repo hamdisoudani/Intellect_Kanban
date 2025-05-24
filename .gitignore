@@ -40,3 +40,12 @@ Thumbs.db
 
 .nx/cache
 .nx/workspace-data
+
+# Next.js
+.next
+out
+
+.cursor\rules\nx-rules.mdc
+.github\instructions\nx.instructions.md
+vite.config.*.timestamp*
+vitest.config.*.timestamp*

@@ -2,5 +2,30 @@
   "extends": "./tsconfig.base.json",
   "compileOnSave": false,
   "files": [],
-  "references": []
+  "references": [
+    {
+      "path": "./apps/teacher"
+    },
+    {
+      "path": "./apps/student"
+    },
+    {
+      "path": "./libs/ui"
+    },
+    {
+      "path": "./libs/utils"
+    },
+    {
+      "path": "./apps/backend-e2e"
+    },
+    {
+      "path": "./apps/backend"
+    }
+  ],
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    }
+  }
 }
