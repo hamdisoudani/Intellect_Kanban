@@ -48,11 +48,7 @@ export * from './components/ui/tooltip'
 export { StatusBadge, type StatusBadgeProps } from './components/ui/status-badge'
 
 // Layout components
-export * from './components/layout/sidebar'
-export * from './components/layout/header'
-export * from './components/layout/dashboard-layout'
-export * from './components/layout/dashboard-page'
-export * from './components/layout/dashboard-widgets'
+export * from './components/layout'
 
 // Icons
 export * from './components/icons'

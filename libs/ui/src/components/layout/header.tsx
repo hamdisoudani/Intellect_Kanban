@@ -6,6 +6,15 @@ import { Button } from '../ui/button';
 import { ThemeToggle } from '../theme/theme-toggle';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  PanelLeftIcon, 
+  PanelRightIcon, 
+  Menu, 
+  X,
+  User,
+  LogOut,
+  Settings
+} from 'lucide-react';
 
 export interface HeaderProps {
   children?: React.ReactNode;
@@ -18,6 +27,7 @@ export interface HeaderProps {
   } | null;
   onSignOut?: () => void;
   isSidebarCollapsed?: boolean;
+  isMobile?: boolean;
   onToggleSidebar?: () => void;
 }
 
@@ -52,46 +62,64 @@ export function ProfileMenu({ user, onSignOut }: ProfileMenuProps) {
       <Button
         onClick={toggleDropdown}
         variant="ghost"
-        className="p-0 h-8 w-8 rounded-full"
+        className="p-0 h-8 w-8 rounded-full overflow-hidden border border-border hover:border-primary/50 transition-colors"
       >
-        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground">
+        <div className="flex items-center justify-center w-full h-full rounded-full bg-primary/10 text-primary">
           {user?.image ? (
             <img src={user.image} alt={user.name || "User"} className="w-full h-full rounded-full object-cover" />
           ) : (
-            <span>{user?.name?.charAt(0) || "U"}</span>
+            <span className="text-sm font-medium">{user?.name?.charAt(0) || "U"}</span>
           )}
         </div>
       </Button>
       
       <AnimatePresence>
         {isOpen && (
-          <motion.div 
-            className="absolute right-0 mt-2 w-48 py-2 bg-background border border-border rounded-md shadow-md z-50"
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.15 }}
-          >
-            <div className="px-4 py-2 border-b border-border">
-              <p className="font-medium">{user?.name || "User"}</p>
-              <p className="text-xs text-muted-foreground">{user?.email || ""}</p>
-            </div>
-            <div className="py-1">
-              <Link 
-                href="/dashboard/profile" 
-                className="block px-4 py-2 text-sm hover:bg-secondary"
-              >
-                Profile Settings
-              </Link>
-              <Button 
-                onClick={handleSignOut}
-                variant="ghost"
-                className="w-full justify-start px-4 py-2 text-sm text-destructive hover:bg-secondary hover:text-destructive"
-              >
-                Sign Out
-              </Button>
-            </div>
-          </motion.div>
+          <>
+            {/* Invisible overlay to capture clicks outside the dropdown */}
+            <div 
+              className="fixed inset-0 z-40" 
+              onClick={() => setIsOpen(false)}
+            />
+            
+            <motion.div 
+              className="absolute right-0 mt-2 w-56 py-2 bg-card border border-border rounded-md shadow-lg z-50"
+              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              transition={{ duration: 0.15, type: "spring", stiffness: 300, damping: 30 }}
+            >
+              <div className="px-4 py-2 border-b border-border">
+                <p className="font-medium truncate">{user?.name || "User"}</p>
+                <p className="text-xs text-muted-foreground truncate">{user?.email || ""}</p>
+              </div>
+              <div className="py-1">
+                <Link 
+                  href="/dashboard/settings" 
+                  className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-muted transition-colors"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <Settings size={16} />
+                  <span>Settings</span>
+                </Link>
+                <Link 
+                  href="/dashboard/profile" 
+                  className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-muted transition-colors"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <User size={16} />
+                  <span>Profile</span>
+                </Link>
+                <button 
+                  onClick={handleSignOut}
+                  className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-destructive hover:bg-muted transition-colors"
+                >
+                  <LogOut size={16} />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </div>
@@ -105,46 +133,52 @@ export function Header({
   user, 
   onSignOut,
   isSidebarCollapsed,
+  isMobile,
   onToggleSidebar
 }: HeaderProps) {
   return (
-    <header className={cn("border-b border-border h-14 flex items-center gap-4 px-4", className)}>
+    <header className={cn(
+      "border-b border-border h-14 flex items-center gap-4 px-4 bg-background/95 backdrop-blur-sm",
+      className
+    )}>
       {onToggleSidebar && (
         <Button
           onClick={onToggleSidebar}
           variant="ghost"
           size="icon"
-          className="mr-2 text-muted-foreground hover:text-foreground"
-          aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="text-muted-foreground hover:text-foreground transition-colors"
+          aria-label={isMobile ? "Open menu" : (isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")}
         >
           <AnimatePresence mode="wait" initial={false}>
-            {isSidebarCollapsed ? (
+            {isMobile ? (
               <motion.div
-                key="expand"
-                initial={{ opacity: 0, rotate: -90 }}
-                animate={{ opacity: 1, rotate: 0 }}
-                exit={{ opacity: 0, rotate: 90 }}
+                key="menu"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
                 transition={{ duration: 0.2 }}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect width="18" height="18" x="3" y="3" rx="2" />
-                  <path d="M9 3v18" />
-                  <path d="m14 9 3 3-3 3" />
-                </svg>
+                <Menu size={20} />
+              </motion.div>
+            ) : isSidebarCollapsed ? (
+              <motion.div
+                key="expand"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.2 }}
+              >
+                <PanelRightIcon size={20} />
               </motion.div>
             ) : (
               <motion.div
                 key="collapse"
-                initial={{ opacity: 0, rotate: 90 }}
-                animate={{ opacity: 1, rotate: 0 }}
-                exit={{ opacity: 0, rotate: -90 }}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
                 transition={{ duration: 0.2 }}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect width="18" height="18" x="3" y="3" rx="2" />
-                  <path d="M9 3v18" />
-                  <path d="m16 15-3-3 3-3" />
-                </svg>
+                <PanelLeftIcon size={20} />
               </motion.div>
             )}
           </AnimatePresence>

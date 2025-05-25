@@ -5,6 +5,7 @@ import { cn } from '@intellect-kanban/utils';
 import Link from 'next/link';
 import { Button } from '../ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
+import { X } from 'lucide-react';
 
 export interface SidebarMenuItem {
   icon: React.ReactNode;
@@ -32,7 +33,49 @@ export interface SidebarProps {
   userProfile?: UserProfile;
   className?: string;
   isCollapsed?: boolean;
+  isMobile?: boolean;
+  onClose?: () => void;
 }
+
+// Animation variants
+const sidebarVariants = {
+  expanded: {
+    width: 256, // w-64 is 256px
+    transition: {
+      type: "spring", 
+      stiffness: 400, 
+      damping: 30,
+      duration: 0.3
+    }
+  },
+  collapsed: {
+    width: 72, // w-18 is 72px
+    transition: {
+      type: "spring", 
+      stiffness: 400, 
+      damping: 30,
+      duration: 0.3
+    }
+  },
+  mobile: {
+    x: 0,
+    transition: {
+      type: "spring", 
+      stiffness: 400, 
+      damping: 30,
+      duration: 0.3
+    }
+  },
+  mobileHidden: {
+    x: "-100%",
+    transition: {
+      type: "spring", 
+      stiffness: 400, 
+      damping: 30,
+      duration: 0.3
+    }
+  }
+};
 
 export function Sidebar({
   logo,
@@ -42,53 +85,71 @@ export function Sidebar({
   userProfile,
   className,
   isCollapsed = false,
+  isMobile = false,
+  onClose,
 }: SidebarProps) {
+  const sidebarVariant = isMobile 
+    ? "mobile"
+    : isCollapsed 
+      ? "collapsed" 
+      : "expanded";
+
   return (
     <motion.aside 
       className={cn(
-        "flex flex-col h-full border-r border-border bg-sidebar text-sidebar-foreground",
+        "flex flex-col h-full border-r border-border bg-background/95 backdrop-blur-sm text-foreground",
+        isMobile && "fixed inset-y-0 left-0 w-64 shadow-xl",
         className
       )}
-      animate={{
-        width: isCollapsed ? 64 : 256, // w-16 is 64px, w-64 is 256px
-      }}
-      transition={{ 
-        type: "spring", 
-        stiffness: 400, 
-        damping: 30,
-        duration: 0.2 
-      }}
+      variants={sidebarVariants}
+      initial={isMobile ? "mobileHidden" : false}
+      animate={sidebarVariant}
     >
       {/* App logo and name */}
       <div className="flex items-center gap-3 h-14 px-4 border-b border-border overflow-hidden">
+        {isMobile && onClose && (
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={onClose}
+            className="absolute right-2 top-2 md:hidden"
+            aria-label="Close sidebar"
+          >
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </Button>
+        )}
         <div className="flex-shrink-0 w-8 h-8">{logo}</div>
         <AnimatePresence>
-          {!isCollapsed && (
+          {(!isCollapsed || isMobile) && (
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.2 }}
+              className="flex flex-col"
             >
-              <h1 className="font-medium">{appName}</h1>
-              {appDescription && <p className="text-xs text-sidebar-foreground/60">{appDescription}</p>}
+              <h1 className="font-semibold tracking-tight">{appName}</h1>
+              {appDescription && (
+                <p className="text-xs text-muted-foreground leading-tight">{appDescription}</p>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
       {/* Navigation sections */}
-      <div className="flex-1 overflow-y-auto py-2">
+      <div className="flex-1 overflow-y-auto py-4 px-2 space-y-6">
         {sections.map((section, sectionIndex) => (
-          <div key={sectionIndex} className="px-2 py-2">
+          <div key={sectionIndex}>
             <AnimatePresence>
-              {section.title && !isCollapsed && (
+              {section.title && (!isCollapsed || isMobile) && (
                 <motion.h2
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -5 }}
                   transition={{ duration: 0.2 }}
-                  className="px-3 mb-1 text-xs font-medium uppercase text-sidebar-foreground/50"
+                  className="px-3 mb-2 text-xs font-semibold text-muted-foreground"
                 >
                   {section.title}
                 </motion.h2>
@@ -96,31 +157,46 @@ export function Sidebar({
             </AnimatePresence>
             <ul className="space-y-1">
               {section.items.map((item, itemIndex) => (
-                <li key={itemIndex}>
+                <motion.li 
+                  key={itemIndex}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ 
+                    duration: 0.2,
+                    delay: itemIndex * 0.05 // Stagger effect
+                  }}
+                >
                   <Link
                     href={item.href}
                     className={cn(
                       "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
                       item.isActive 
-                        ? "bg-sidebar-accent text-sidebar-accent-foreground" 
-                        : "hover:bg-sidebar-accent/50 text-sidebar-foreground",
-                      isCollapsed && "justify-center"
+                        ? "bg-primary/10 text-primary font-medium border-l-2 border-primary" 
+                        : "hover:bg-secondary text-foreground hover:text-foreground",
+                      (!isCollapsed || isMobile) ? "justify-start" : "justify-center"
                     )}
-                    title={isCollapsed ? item.label : undefined}
+                    title={isCollapsed && !isMobile ? item.label : undefined}
                   >
-                    <span className="flex-shrink-0 w-5 h-5">{item.icon}</span>
+                    <span className="flex-shrink-0 w-5 h-5">
+                      {item.icon}
+                    </span>
                     <AnimatePresence>
-                      {!isCollapsed && (
+                      {(!isCollapsed || isMobile) && (
                         <motion.div
                           initial={{ opacity: 0, width: 0 }}
                           animate={{ opacity: 1, width: "auto" }}
                           exit={{ opacity: 0, width: 0 }}
                           transition={{ duration: 0.2 }}
-                          className="flex items-center"
+                          className="flex items-center justify-between w-full"
                         >
-                          <span className="flex-1">{item.label}</span>
+                          <span className="flex-1 truncate">{item.label}</span>
                           {item.count !== undefined && (
-                            <span className="text-xs bg-sidebar-accent/30 px-2 py-0.5 rounded-full">
+                            <span className={cn(
+                              "text-xs font-medium ml-1 px-2 py-0.5 rounded-full",
+                              item.isActive 
+                                ? "bg-primary/20 text-primary" 
+                                : "bg-muted text-muted-foreground"
+                            )}>
                               {item.count}
                             </span>
                           )}
@@ -128,7 +204,7 @@ export function Sidebar({
                       )}
                     </AnimatePresence>
                   </Link>
-                </li>
+                </motion.li>
               ))}
             </ul>
           </div>
@@ -140,30 +216,34 @@ export function Sidebar({
         <div className="border-t border-border p-4 mt-auto">
           <div className={cn(
             "flex items-center gap-3",
-            isCollapsed && "justify-center"
+            (isCollapsed && !isMobile) && "justify-center"
           )}>
-            {userProfile.avatar ? (
-              <img 
-                src={userProfile.avatar} 
-                alt={userProfile.name} 
-                className="w-8 h-8 rounded-full"
-              />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center">
-                {userProfile.name.charAt(0)}
-              </div>
-            )}
+            <div className="relative flex-shrink-0">
+              {userProfile.avatar ? (
+                <img 
+                  src={userProfile.avatar} 
+                  alt={userProfile.name} 
+                  className="w-8 h-8 rounded-full border border-border"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center border border-border">
+                  {userProfile.name.charAt(0)}
+                </div>
+              )}
+              <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-background" />
+            </div>
             <AnimatePresence>
-              {!isCollapsed && (
-                <motion.span 
-                  className="text-sm font-medium"
+              {(!isCollapsed || isMobile) && (
+                <motion.div 
+                  className="flex flex-col"
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -10 }}
                   transition={{ duration: 0.2 }}
                 >
-                  {userProfile.name}
-                </motion.span>
+                  <span className="text-sm font-medium truncate">{userProfile.name}</span>
+                  <span className="text-xs text-muted-foreground">Online</span>
+                </motion.div>
               )}
             </AnimatePresence>
           </div>

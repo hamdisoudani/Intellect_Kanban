@@ -10,7 +10,8 @@ import {
   Input,
   Avatar,
   AvatarImage,
-  AvatarFallback
+  AvatarFallback,
+  Separator
 } from '@intellect-kanban/ui';
 import { Board } from '@/utils/types';
 import { 
@@ -28,6 +29,7 @@ import {
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { getSession, logout } from '@/server/auth-actions';
+import { BoardStudents, Student } from './BoardStudents';
 
 interface BoardHeaderProps {
   board: Board;
@@ -35,6 +37,18 @@ interface BoardHeaderProps {
   onActivityButtonClick?: () => void;
   currentView?: 'personal' | 'class';
   onViewChange?: (mode: 'personal' | 'class') => void;
+}
+
+// Helper function to safely get a student ID
+function getStudentId(student: any): string {
+  if (!student) return `student-${Math.random().toString(36).substring(2, 9)}`;
+  
+  // Handle both id and _id
+  if (student.id) return typeof student.id === 'string' ? student.id : String(student.id);
+  if (student._id) return typeof student._id === 'string' ? student._id : String(student._id);
+  
+  // Last resort fallback
+  return `student-${Math.random().toString(36).substring(2, 9)}`;
 }
 
 // Helper function to safely convert classId to string
@@ -200,6 +214,23 @@ export function BoardHeader({
                 </Button>
               </div>
             </div>
+          )}
+          
+          {/* Display students when in class view and board has students */}
+          {currentView === 'class' && board.classId && board.students && board.students.length > 0 && (
+            <>
+              <Separator orientation="vertical" className="h-8 mx-2" />
+              <BoardStudents 
+                students={board.students.map(student => ({
+                  id: getStudentId(student),
+                  name: student.name || 'Unknown Student',
+                  // For now, we're setting random online status for demo
+                  // This will be replaced with real-time data in the future
+                  isOnline: Math.random() > 0.5
+                }))} 
+                maxVisible={5}
+              />
+            </>
           )}
         </div>
 

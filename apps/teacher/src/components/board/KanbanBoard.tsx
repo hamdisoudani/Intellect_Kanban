@@ -496,14 +496,14 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     
     // Add all activity IDs to selection
     metaActivities.forEach(activity => {
-      const activityId = activity._id;
+        const activityId = activity._id;
       
       // Only mark as loading if we don't already have the assignments
       if (!assignmentsByActivity[activityId]) {
         newLoadingState[activityId] = true;
       }
       
-      newSelection.add(activityId);
+        newSelection.add(activityId);
     });
     
     // Update selection immediately to show UI feedback
@@ -1085,90 +1085,90 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
                                     
                                     {/* Students tab content */}
                                     <TabsContent value="students" className="p-3 focus-visible:outline-none focus-visible:ring-0">
-                                      {/* Search input for students */}
-                                      <div className="mb-3 relative">
-                                        <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-                                        <Input
-                                          placeholder="Search students..."
-                                          value={studentSearchQuery}
-                                          onChange={(e) => setStudentSearchQuery(e.target.value)}
-                                          className="pl-7 h-7 text-xs"
-                                        />
-                                      </div>
-                                      
+                                  {/* Search input for students */}
+                                  <div className="mb-3 relative">
+                                    <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                                    <Input
+                                      placeholder="Search students..."
+                                      value={studentSearchQuery}
+                                      onChange={(e) => setStudentSearchQuery(e.target.value)}
+                                      className="pl-7 h-7 text-xs"
+                                    />
+                                  </div>
+                                  
                                       <div className="max-h-[200px] overflow-y-auto border rounded-md">
-                                        {/* Get all unique students from selected activities */}
-                                        {getUniqueStudentsFromSelectedActivities().length > 0 ? (
+                                    {/* Get all unique students from selected activities */}
+                                    {getUniqueStudentsFromSelectedActivities().length > 0 ? (
                                           <div className="divide-y">
-                                            {/* Select All option */}
+                                        {/* Select All option */}
                                             <div className="p-2 bg-muted/30">
                                               <div className="flex items-center gap-2">
-                                                <Checkbox 
-                                                  id="student-filter-select-all" 
-                                                  checked={tempStudentFilters.size === getUniqueStudentsFromSelectedActivities().length}
-                                                  onCheckedChange={(checked) => {
-                                                    if (checked) {
-                                                      // Select all students
-                                                      const allStudents = getUniqueStudentsFromSelectedActivities();
-                                                      const allIds = new Set(allStudents.map(s => s._id));
-                                                      setTempStudentFilters(allIds);
-                                                    } else {
-                                                      // Clear all selections
-                                                      setTempStudentFilters(new Set());
-                                                    }
-                                                  }}
-                                                />
-                                                <label 
-                                                  htmlFor="student-filter-select-all" 
+                                          <Checkbox 
+                                            id="student-filter-select-all" 
+                                            checked={tempStudentFilters.size === getUniqueStudentsFromSelectedActivities().length}
+                                            onCheckedChange={(checked) => {
+                                              if (checked) {
+                                                // Select all students
+                                                const allStudents = getUniqueStudentsFromSelectedActivities();
+                                                const allIds = new Set(allStudents.map(s => s._id));
+                                                setTempStudentFilters(allIds);
+                                              } else {
+                                                // Clear all selections
+                                                setTempStudentFilters(new Set());
+                                              }
+                                            }}
+                                          />
+                                          <label 
+                                            htmlFor="student-filter-select-all" 
                                                   className="text-xs font-medium cursor-pointer"
-                                                >
-                                                  Select All
-                                                </label>
+                                          >
+                                            Select All
+                                          </label>
                                               </div>
-                                            </div>
-                                            
+                                        </div>
+                                        
                                             <div className="p-1">
-                                              {getUniqueStudentsFromSelectedActivities()
-                                                .filter(student => 
-                                                  !studentSearchQuery || 
-                                                  student.name.toLowerCase().includes(studentSearchQuery.toLowerCase())
-                                                )
-                                                .map(student => (
+                                        {getUniqueStudentsFromSelectedActivities()
+                                          .filter(student => 
+                                            !studentSearchQuery || 
+                                            student.name.toLowerCase().includes(studentSearchQuery.toLowerCase())
+                                          )
+                                          .map(student => (
                                                   <div key={student._id} className="flex items-center gap-2 p-1.5 hover:bg-muted/50 rounded">
-                                                    <Checkbox 
-                                                      id={`student-filter-${student._id}`} 
-                                                      checked={tempStudentFilters.has(student._id)}
-                                                      onCheckedChange={(checked) => {
-                                                        const newFilters = new Set(tempStudentFilters);
-                                                        if (checked) {
-                                                          newFilters.add(student._id);
-                                                        } else {
-                                                          newFilters.delete(student._id);
-                                                        }
-                                                        setTempStudentFilters(newFilters);
-                                                      }}
-                                                    />
-                                                    <label 
-                                                      htmlFor={`student-filter-${student._id}`} 
+                                              <Checkbox 
+                                                id={`student-filter-${student._id}`} 
+                                                checked={tempStudentFilters.has(student._id)}
+                                                onCheckedChange={(checked) => {
+                                                  const newFilters = new Set(tempStudentFilters);
+                                                  if (checked) {
+                                                    newFilters.add(student._id);
+                                                  } else {
+                                                    newFilters.delete(student._id);
+                                                  }
+                                                  setTempStudentFilters(newFilters);
+                                                }}
+                                              />
+                                              <label 
+                                                htmlFor={`student-filter-${student._id}`} 
                                                       className="text-xs cursor-pointer flex items-center gap-2"
-                                                    >
-                                                      <Avatar className="h-5 w-5">
-                                                        <AvatarFallback className="text-[9px]">
-                                                          {student.name.substring(0, 2).toUpperCase()}
-                                                        </AvatarFallback>
-                                                      </Avatar>
+                                              >
+                                                <Avatar className="h-5 w-5">
+                                                  <AvatarFallback className="text-[9px]">
+                                                    {student.name.substring(0, 2).toUpperCase()}
+                                                  </AvatarFallback>
+                                                </Avatar>
                                                       <span className="truncate">{student.name}</span>
-                                                    </label>
-                                                  </div>
-                                                ))}
+                                              </label>
                                             </div>
-                                          </div>
-                                        ) : (
-                                          <div className="text-xs text-muted-foreground text-center py-4">
-                                            No students available
-                                          </div>
-                                        )}
+                                          ))}
+                                            </div>
                                       </div>
+                                    ) : (
+                                          <div className="text-xs text-muted-foreground text-center py-4">
+                                        No students available
+                                      </div>
+                                    )}
+                                  </div>
                                     </TabsContent>
                                     
                                     {/* Tags tab content */}
@@ -1595,7 +1595,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
                                             <span className="inline-flex items-center gap-1">
                                               <UsersIcon className="h-3 w-3" /> 
                                               {selectedStudentFilters.size}
-                                            </span>
+                                        </span>
                                           )}
                                           {selectedTagFilters.size > 0 && (
                                             <span className="inline-flex items-center gap-1">

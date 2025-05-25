@@ -16,3 +16,4 @@ export { default as apiClient, apiHelpers, API_CONFIG } from './lib/api';
 export type { AuthResponse } from './lib/auth';
 
 export { useIsMobile } from './hooks/use-mobile';
+export { useMediaQuery } from './hooks/use-media-query';
