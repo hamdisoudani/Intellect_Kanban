@@ -1,6 +1,7 @@
 "use client";
 
-import { AssignmentWithMeta, Column } from '@/types';
+import { useState, useEffect } from 'react';
+import { AssignmentWithMeta, Feedback } from '@/types';
 import { 
   Dialog,
   DialogContent,
@@ -11,6 +12,11 @@ import {
   ScrollArea,
   Separator,
   Card,
+  Textarea,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
 } from '@intellect-kanban/ui';
 import { 
   CalendarIcon,
@@ -24,10 +30,14 @@ import {
   CircleIcon,
   CheckCircleIcon,
   AlertCircleIcon,
-  InfoIcon
+  InfoIcon,
+  Save,
+  MessageCircle,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { formatMinutesToTime } from '@/utils/format';
+import { markFeedbackAsRead, updateAssignmentNotes } from '@/utils/api';
+import { toast } from 'sonner';
 
 interface ColumnHistoryItem {
   columnId: string;
@@ -40,6 +50,37 @@ interface AssignmentDetailProps {
 }
 
 export function AssignmentDetail({ assignment, onClose }: AssignmentDetailProps) {
+  const [notes, setNotes] = useState(assignment.notes || '');
+  const [isSaving, setIsSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState('description');
+  const [hasUnreadFeedback, setHasUnreadFeedback] = useState(false);
+  const [feedback, setFeedback] = useState<Feedback[]>(assignment.feedback || []);
+
+  // Check for unread feedback when component mounts
+  useEffect(() => {
+    if (assignment.feedback && assignment.feedback.length > 0) {
+      setFeedback(assignment.feedback);
+      const hasUnread = assignment.feedback.some((fb) => !fb.readByStudent);
+      setHasUnreadFeedback(hasUnread);
+      
+      // If there's unread feedback, automatically switch to the feedback tab
+      if (hasUnread) {
+        setActiveTab('feedback');
+        // Mark as read
+        markFeedbackAsRead(assignment._id)
+          .then((updatedAssignment) => {
+            if (updatedAssignment.feedback) {
+              setFeedback(updatedAssignment.feedback);
+              setHasUnreadFeedback(false);
+            }
+          })
+          .catch((error) => {
+            console.error('Error marking feedback as read:', error);
+          });
+      }
+    }
+  }, [assignment]);
+
   // Format due date if it exists
   const formattedDueDate = assignment.dueDate 
     ? format(new Date(assignment.dueDate), 'MMMM d, yyyy')
@@ -113,6 +154,22 @@ export function AssignmentDetail({ assignment, onClose }: AssignmentDetailProps)
     
     return columnNames[columnId] || columnId;
   };
+  
+  // Handle saving notes
+  const handleSaveNotes = async () => {
+    if (notes === assignment.notes) return;
+    
+    setIsSaving(true);
+    try {
+      await updateAssignmentNotes(assignment._id, notes);
+      toast.success('Notes saved successfully');
+    } catch (error) {
+      console.error('Error saving notes:', error);
+      toast.error('Failed to save notes');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <Dialog open={true} onOpenChange={() => onClose()}>
@@ -164,153 +221,166 @@ export function AssignmentDetail({ assignment, onClose }: AssignmentDetailProps)
         
         <Separator className="my-0" />
         
-        <ScrollArea className="p-6 max-h-[calc(90vh-8rem)]">
-          <div className="space-y-6">
-            {/* Metadata/statistics */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-muted/20 rounded-md p-4">
-              {/* Due date */}
-              {formattedDueDate && (
-                <div className="flex items-start">
-                  <div className="bg-background rounded-md p-2 mr-3">
-                    <CalendarIcon className={`h-4 w-4 ${isOverdue ? 'text-red-500' : 'text-muted-foreground'}`} />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Due Date</p>
-                    <p className={`text-sm font-medium ${isOverdue ? 'text-red-500' : ''}`}>
-                      {formattedDueDate}
-                    </p>
-                    {relativeDate && (
-                      <p className={`text-xs ${isOverdue ? 'text-red-500/80' : 'text-muted-foreground'}`}>
-                        {relativeDate}
-                      </p>
-                    )}
-                  </div>
-                </div>
+        <Tabs 
+          value={activeTab} 
+          onValueChange={setActiveTab} 
+          className="mx-6 mt-4"
+        >
+          <TabsList>
+            <TabsTrigger value="description">Description</TabsTrigger>
+            <TabsTrigger value="notes">My Notes</TabsTrigger>
+            <TabsTrigger value="feedback" className="relative">
+              Feedback
+              {hasUnreadFeedback && (
+                <span className="absolute -top-1 -right-1 h-2 w-2 bg-red-500 rounded-full" />
               )}
-
-              {/* Estimated time */}
-              {assignment.estimatedTimeMinutes && (
-                <div className="flex items-start">
-                  <div className="bg-background rounded-md p-2 mr-3">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Estimated Time</p>
-                    <p className="text-sm font-medium">
-                      {formatMinutesToTime(assignment.estimatedTimeMinutes)}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Difficulty */}
-              {assignment.difficultyLevel && (
-                <div className="flex items-start">
-                  <div className="bg-background rounded-md p-2 mr-3">
-                    <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Difficulty</p>
-                    <p className="text-sm font-medium capitalize">
-                      {assignment.difficultyLevel}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Description */}
-            {assignment.description && (
-              <Card className="p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-3">
-                  <BookIcon className="h-4 w-4 text-primary" />
-                  <h3 className="text-sm font-medium text-primary">Description</h3>
-                </div>
-                <div className="text-sm prose prose-sm max-w-none dark:prose-invert">
-                  {assignment.description}
-                </div>
-              </Card>
-            )}
-
-            {/* Notes */}
-            {assignment.notes && (
-              <Card className="p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-3">
-                  <TagIcon className="h-4 w-4 text-primary" />
-                  <h3 className="text-sm font-medium text-primary">Notes</h3>
-                </div>
-                <div className="text-sm prose prose-sm max-w-none dark:prose-invert">
-                  {assignment.notes}
-                </div>
-              </Card>
-            )}
-
-            {/* Attachments */}
-            {assignment.attachments && assignment.attachments.length > 0 && (
-              <Card className="p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-3">
-                  <FileIcon className="h-4 w-4 text-primary" />
-                  <h3 className="text-sm font-medium text-primary">
-                    Attachments ({assignment.attachments.length})
-                  </h3>
-                </div>
-                <div className="space-y-2">
-                  {assignment.attachments.map((attachment) => (
-                    <div
-                      key={attachment.id}
-                      className="flex items-center justify-between bg-muted/15 hover:bg-muted/30 rounded-md p-3 transition-colors"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div className="bg-background rounded-md p-1.5">
-                          <FileIcon className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                        <span className="text-sm">{attachment.name}</span>
-                      </div>
-                      <Button size="sm" variant="outline" className="h-8 gap-1.5">
-                        <Download className="h-3.5 w-3.5" />
-                        <span className="text-xs">Download</span>
-                      </Button>
+            </TabsTrigger>
+          </TabsList>
+          
+          <ScrollArea className="max-h-[calc(90vh-12rem)] mt-4">
+            <TabsContent value="description" className="space-y-6">
+              {/* Metadata/statistics */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-muted/20 rounded-md p-4">
+                {/* Due date */}
+                {formattedDueDate && (
+                  <div className="flex items-start">
+                    <div className="bg-background rounded-md p-2 mr-3">
+                      <CalendarIcon className={`h-4 w-4 ${isOverdue ? 'text-red-500' : 'text-muted-foreground'}`} />
                     </div>
-                  ))}
-                </div>
-              </Card>
-            )}
+                    <div>
+                      <p className="text-xs text-muted-foreground">Due Date</p>
+                      <p className={`text-sm font-medium ${isOverdue ? 'text-red-500' : ''}`}>
+                        {formattedDueDate}
+                      </p>
+                      {relativeDate && (
+                        <p className={`text-xs ${isOverdue ? 'text-red-500/80' : 'text-muted-foreground'}`}>
+                          {relativeDate}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
 
-            {/* Current status */}
-            <Card className="p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-3">
-                <CalendarIcon className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-medium text-primary">Current Status</h3>
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-center space-x-2 text-xs">
-                  <div className="bg-green-500/20 text-green-500 rounded-full w-6 h-6 flex items-center justify-center">
-                    <CheckCircleIcon className="h-3.5 w-3.5" />
+                {/* Estimated time */}
+                {assignment.estimatedTimeMinutes && (
+                  <div className="flex items-start">
+                    <div className="bg-background rounded-md p-2 mr-3">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Estimated Time</p>
+                      <p className="text-sm font-medium">
+                        {formatMinutesToTime(assignment.estimatedTimeMinutes)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <p className="font-medium">Assignment created</p>
-                    <p className="text-muted-foreground">
-                      {format(new Date(assignment.createdAt), 'MMM d, yyyy')}
-                    </p>
+                )}
+
+                {/* Difficulty */}
+                {assignment.difficultyLevel && (
+                  <div className="flex items-start">
+                    <div className="bg-background rounded-md p-2 mr-3">
+                      <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Difficulty</p>
+                      <p className="text-sm font-medium">
+                        {assignment.difficultyLevel}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Description */}
+              <div>
+                <h3 className="text-sm font-medium mb-2">Description</h3>
+                <div className="prose prose-sm max-w-none">
+                  <p className="text-sm text-muted-foreground whitespace-pre-line">
+                    {assignment.description || "No description provided."}
+                  </p>
+                </div>
+              </div>
+
+              {/* Attachments */}
+              {assignment.attachments && assignment.attachments.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium mb-2">Attachments</h3>
+                  <div className="space-y-2">
+                    {assignment.attachments.map((attachment, i) => (
+                      <div key={attachment.id || i} className="flex items-center justify-between p-2 border rounded-md">
+                        <div className="flex items-center gap-2">
+                          <FileIcon className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm">{attachment.name || `Attachment ${i+1}`}</span>
+                        </div>
+                        <Button size="sm" variant="outline" className="h-8">
+                          <Download className="h-3 w-3 mr-1" /> Download
+                        </Button>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <div className="flex items-center space-x-2 text-xs">
-                  <div className={`bg-${status.color.split('-')[1]}-500/20 ${status.color} rounded-full w-6 h-6 flex items-center justify-center`}>
-                    {status.icon}
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium">
-                      Currently in {getColumnName(assignment.columnId)}
-                    </p>
-                    <p className="text-muted-foreground">
-                      Last updated: {format(new Date(assignment.updatedAt), 'MMM d, yyyy')}
-                    </p>
-                  </div>
+              )}
+            </TabsContent>
+            
+            <TabsContent value="notes" className="space-y-4">
+              <div>
+                <h3 className="text-sm font-medium mb-2">My Notes</h3>
+                <Textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Add your notes here..."
+                  className="min-h-[200px]"
+                />
+                <div className="flex justify-end mt-2">
+                  <Button 
+                    size="sm" 
+                    onClick={handleSaveNotes} 
+                    disabled={isSaving || notes === assignment.notes}
+                  >
+                    {isSaving ? (
+                      <>
+                        <span className="animate-spin mr-2">◌</span>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-3.5 w-3.5 mr-1.5" /> Save Notes
+                      </>
+                    )}
+                  </Button>
                 </div>
               </div>
-            </Card>
-          </div>
-        </ScrollArea>
+            </TabsContent>
+
+            <TabsContent value="feedback" className="mt-2">
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium">Teacher Feedback</h3>
+                
+                {feedback && feedback.length > 0 ? (
+                  feedback.map((item, index) => (
+                    <Card key={item._id || index} className="p-3">
+                      <div className="flex justify-between">
+                        <div className="text-xs text-muted-foreground mb-1">
+                          <span className="font-medium text-foreground">
+                            {item.createdBy?.name || 'Teacher'}
+                          </span>
+                          <span> · {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}</span>
+                        </div>
+                      </div>
+                      <p className="text-sm whitespace-pre-line">{item.content}</p>
+                    </Card>
+                  ))
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <MessageCircle className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                    <p className="text-sm text-muted-foreground">No feedback yet.</p>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+          </ScrollArea>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

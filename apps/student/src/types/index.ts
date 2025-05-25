@@ -54,6 +54,18 @@ export interface Assignment {
   updatedAt: string;
 }
 
+// Feedback type
+export interface Feedback {
+  _id?: string;
+  content: string;
+  createdBy: {
+    _id: string;
+    name: string;
+  };
+  createdAt: string;
+  readByStudent: boolean;
+}
+
 // Activity types
 export interface Activity {
   _id: string;
@@ -114,6 +126,9 @@ export interface AssignmentWithMeta {
   tags?: FrontendTag[];
   priority?: PriorityLevel;
   attachments?: Attachment[];
+  
+  // Feedback from teachers
+  feedback?: Feedback[];
   
   // Timestamps
   createdAt: string;

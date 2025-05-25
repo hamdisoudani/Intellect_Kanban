@@ -153,8 +153,15 @@ export class AssignmentsService {
     
     // Check if user is authorized to update this assignment
     // Students can only update their own assignments
-    if (userRole === UserRole.STUDENT && assignment.studentId.toString() !== userId) {
-      throw new ForbiddenException('You can only update your own assignments');
+    if (userRole === UserRole.STUDENT) {
+      // Handle both populated and non-populated studentId scenarios
+      const assignmentStudentId = typeof assignment.studentId === 'string' 
+        ? assignment.studentId 
+        : (assignment.studentId as any)._id?.toString() || assignment.studentId.toString();
+      
+      if (assignmentStudentId !== userId) {
+        throw new ForbiddenException('You can only update your own assignments');
+      }
     }
     
     // Check if column has changed
@@ -199,7 +206,12 @@ export class AssignmentsService {
     const assignment = await this.findOne(id);
     
     // Ensure only the student assigned can mark feedback as read
-    if (assignment.studentId.toString() !== userId) {
+    // Handle both populated and non-populated studentId scenarios
+    const assignmentStudentId = typeof assignment.studentId === 'string' 
+      ? assignment.studentId 
+      : (assignment.studentId as any)._id?.toString() || assignment.studentId.toString();
+    
+    if (assignmentStudentId !== userId) {
       throw new ForbiddenException('You can only mark feedback as read for your own assignments');
     }
     
