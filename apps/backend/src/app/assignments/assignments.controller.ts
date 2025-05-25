@@ -70,10 +70,21 @@ export class AssignmentsController {
   }
 
   /**
-   * Get assignments for a board (teachers only)
+   * Get assignments for a board
+   * - For teachers: returns all assignments
+   * - For students: returns only their assignments with detailed activity data
    */
   @Get('board/:boardId')
-  async findByBoard(@Param('boardId') boardId: string) {
+  async findByBoard(
+    @Param('boardId') boardId: string,
+    @Req() req: RequestWithUser
+  ) {
+    // If student, return only their assignments with full activity details
+    if (req.user.role === UserRole.STUDENT) {
+      return this.assignmentsService.findByBoardAndStudent(boardId, req.user.userId);
+    }
+    
+    // For teachers and admins, return all assignments
     return this.assignmentsService.findByBoard(boardId);
   }
 

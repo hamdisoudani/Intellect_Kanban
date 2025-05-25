@@ -107,14 +107,23 @@ export class AssignmentsService {
   }
 
   /**
-   * Find all assignments for a specific board and student
+   * Find all assignments for a specific board and student with full activity details
    */
   async findByBoardAndStudent(boardId: string, studentId: string): Promise<AssignmentDocument[]> {
     return this.assignmentModel.find({ 
       boardId: new Types.ObjectId(boardId),
       studentId: new Types.ObjectId(studentId)
     })
-      .populate('activityId', 'title description dueDate _id')
+      .populate({
+        path: 'activityId',
+        select: 'title description dueDate tags difficultyLevel estimatedTimeMinutes type createdBy createdAt updatedAt',
+        populate: {
+          path: 'tags',
+          select: '_id name description color'
+        }
+      })
+      .populate('studentId', '_id name')
+      .sort({ position: 1 })
       .exec();
   }
 
