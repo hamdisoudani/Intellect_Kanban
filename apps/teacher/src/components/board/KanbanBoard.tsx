@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Button, Skeleton, Badge, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, Checkbox, Avatar, AvatarFallback, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@intellect-kanban/ui';
+import { Button, Skeleton, Badge, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, Checkbox, Avatar, AvatarFallback, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, Tabs, TabsContent, TabsList, TabsTrigger } from '@intellect-kanban/ui';
 import { toast } from 'sonner';
 import { Board, Activity as ActivityType, StudentOption } from '@/utils/types';
 import { Assignment } from '@/utils/types/assignment';
@@ -9,7 +9,7 @@ import { BoardHeader } from './BoardHeader';
 import { ActivityDetailDialog } from './ActivityDetailDialog';
 import { PriorityBadge } from './PriorityBadge';
 import { CreateActivityDialog } from './CreateActivityDialog';
-import { PlusIcon, CheckCircle, Circle, CheckSquare, Square, Filter, AlertCircle, Calendar, UsersIcon, Search, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { PlusIcon, CheckCircle, Circle, CheckSquare, Square, Filter, AlertCircle, Calendar, UsersIcon, Search, ChevronLeft, ChevronRight, X, Tag as TagIcon } from 'lucide-react';
 import { KanbanActivityCard } from './KanbanActivityCard';
 import { AssignmentCard } from './AssignmentCard';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -17,6 +17,8 @@ import { Input } from '@intellect-kanban/ui';
 import { MetaActivityCard } from './MetaActivityCard';
 import { ManageStudentsDialog } from './ManageStudentsDialog';
 import { TagsProvider } from '@/contexts/TagsContext';
+import { Tag as TagType } from '@/types/tags';
+import { DifficultyLevel, difficultyLevelLabels, difficultyLevelColors } from '@/types/activities';
 
 // New interface for MetaActivities display
 interface MetaColumn {
@@ -71,6 +73,16 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
   const [selectedStudentFilters, setSelectedStudentFilters] = useState<Set<string>>(new Set());
   const [tempStudentFilters, setTempStudentFilters] = useState<Set<string>>(new Set());
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  
+  // Add new filter states for tags and difficulty levels
+  const [selectedTagFilters, setSelectedTagFilters] = useState<Set<string>>(new Set());
+  const [tempTagFilters, setTempTagFilters] = useState<Set<string>>(new Set());
+  const [tagSearchQuery, setTagSearchQuery] = useState('');
+  const [selectedDifficultyFilters, setSelectedDifficultyFilters] = useState<Set<DifficultyLevel>>(new Set());
+  const [tempDifficultyFilters, setTempDifficultyFilters] = useState<Set<DifficultyLevel>>(new Set());
+  
+  // Add state for advanced filter tabs
+  const [activeFilterTab, setActiveFilterTab] = useState<'students' | 'tags' | 'difficulty'>('students');
   
   // Add state for managing students dialog
   const [isManageStudentsOpen, setIsManageStudentsOpen] = useState(false);
@@ -462,7 +474,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     }
   };
 
-  // Add a selectAll function
+  // Add a selectAll function - optimized version
   const selectAllMetaActivities = async () => {
     // Skip if already loading assignments
     if (Object.values(isLoadingAssignments).some(loading => loading)) {
@@ -480,20 +492,35 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     
     // Otherwise, select all
     const newSelection = new Set<string>();
+    const newLoadingState: Record<string, boolean> = {};
     
-    // Show loading indicator
-    const loadingState: Record<string, boolean> = {};
+    // Add all activity IDs to selection
     metaActivities.forEach(activity => {
-      loadingState[activity._id] = true;
+      const activityId = activity._id;
+      
+      // Only mark as loading if we don't already have the assignments
+      if (!assignmentsByActivity[activityId]) {
+        newLoadingState[activityId] = true;
+      }
+      
+      newSelection.add(activityId);
     });
-    setIsLoadingAssignments(loadingState);
     
+    // Update selection immediately to show UI feedback
+    setSelectedMetaActivities(newSelection);
+    
+    // If no new assignments to load, return early
+    if (Object.keys(newLoadingState).length === 0) {
+      return;
+    }
+    
+    // Update loading state
+    setIsLoadingAssignments(prev => ({ ...prev, ...newLoadingState }));
+    
+    // Batch fetch assignments using Promise.all for parallelism
     try {
-      // Fetch assignments for each activity
-      const assignmentPromises = metaActivities.map(async (activity) => {
-        const activityId = activity._id;
-        newSelection.add(activityId);
-        
+      const activityIds = Object.keys(newLoadingState);
+      const assignmentPromises = activityIds.map(async (activityId) => {
         try {
           const response = await fetch(`/api/assignments/activity/${activityId}`);
           
@@ -508,26 +535,28 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
         }
       });
       
+      // Wait for all fetches to complete
       const results = await Promise.all(assignmentPromises);
       
-      // Build updated assignments state
-      const newAssignments: Record<string, any[]> = {};
+      // Update assignments state
+      const newAssignments: Record<string, any[]> = { ...assignmentsByActivity };
       results.forEach(({ activityId, assignments }) => {
         newAssignments[activityId] = assignments;
       });
       
-      setSelectedMetaActivities(newSelection);
       setAssignmentsByActivity(newAssignments);
     } catch (error) {
       console.error('Error selecting all activities:', error);
-      toast.error('Failed to select all activities');
+      toast.error('Failed to load some assignments', {
+        description: 'Some assignments may not be displayed correctly'
+      });
     } finally {
       // Clear loading state
       const clearedLoadingState: Record<string, boolean> = {};
-      metaActivities.forEach(activity => {
-        clearedLoadingState[activity._id] = false;
+      Object.keys(newLoadingState).forEach(activityId => {
+        clearedLoadingState[activityId] = false;
       });
-      setIsLoadingAssignments(clearedLoadingState);
+      setIsLoadingAssignments(prev => ({ ...prev, ...clearedLoadingState }));
     }
   };
 
@@ -658,9 +687,12 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     // Get all assignments for this column
     const assignments = getAllColumnAssignments(columnId);
     
-    // Additional filter by selected students if any are selected
+    // Start with all assignments
+    let filteredAssignments = [...assignments];
+    
+    // Filter by selected students if any are selected
     if (selectedStudentFilters.size > 0) {
-      return assignments.filter(assignment => {
+      filteredAssignments = filteredAssignments.filter(assignment => {
         const studentId = typeof assignment.studentId === 'object' 
           ? assignment.studentId._id 
           : assignment.studentId;
@@ -668,7 +700,54 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
       });
     }
     
-    return assignments;
+    // Filter by selected tags if any are selected
+    if (selectedTagFilters.size > 0) {
+      filteredAssignments = filteredAssignments.filter(assignment => {
+        // Get the associated activity
+        const activityId = typeof assignment.activityId === 'object' 
+          ? assignment.activityId._id 
+          : assignment.activityId;
+        
+        // Find the activity in meta-activities column
+        const activity = activities['meta-activities']?.find(
+          act => act._id === activityId
+        );
+        
+        if (!activity || !activity.tags || !Array.isArray(activity.tags)) {
+          return false;
+        }
+        
+        // Check if any of the activity's tags match our selected tag filters
+        return activity.tags.some((tag: any) => {
+          const tagId = typeof tag === 'object' ? tag._id : tag;
+          return selectedTagFilters.has(tagId);
+        });
+      });
+    }
+    
+    // Filter by selected difficulty levels if any are selected
+    if (selectedDifficultyFilters.size > 0) {
+      filteredAssignments = filteredAssignments.filter(assignment => {
+        // Get the associated activity
+        const activityId = typeof assignment.activityId === 'object' 
+          ? assignment.activityId._id 
+          : assignment.activityId;
+        
+        // Find the activity in meta-activities column
+        const activity = activities['meta-activities']?.find(
+          act => act._id === activityId
+        );
+        
+        // No difficulty level or not in selected filters
+        if (!activity || !activity.difficultyLevel) {
+          return false;
+        }
+        
+        return selectedDifficultyFilters.has(activity.difficultyLevel as DifficultyLevel);
+      });
+    }
+    
+    return filteredAssignments;
   };
   
   // Function to get all unique students from selected meta activities
@@ -704,6 +783,52 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     return Array.from(uniqueStudents.values());
   };
   
+  // Function to get all unique tags from selected meta activities
+  const getUniqueTagsFromSelectedActivities = (): TagType[] => {
+    const uniqueTags = new Map<string, TagType>();
+    
+    // Go through all selected activities to extract tags
+    selectedMetaActivities.forEach(activityId => {
+      const activity = activities['meta-activities']?.find(act => act._id === activityId);
+      
+      if (activity && activity.tags && Array.isArray(activity.tags)) {
+        // Type-safe iteration over tags
+        (activity.tags as any[]).forEach((tag) => {
+          const tagId = typeof tag === 'object' && tag !== null ? tag._id : String(tag);
+          const tagObj = typeof tag === 'object' && tag !== null ? tag as TagType : 
+            { _id: tagId, name: 'Unknown Tag', color: '#6366F1', createdBy: '', createdAt: '', updatedAt: '' };
+          
+          if (tagId && !uniqueTags.has(tagId)) {
+            uniqueTags.set(tagId, tagObj);
+          }
+        });
+      }
+    });
+    
+    return Array.from(uniqueTags.values());
+  };
+  
+  // Function to get all unique difficulty levels from selected meta activities
+  const getUniqueDifficultyLevelsFromSelectedActivities = (): { level: DifficultyLevel, label: string, color: string }[] => {
+    const uniqueDifficulties = new Set<DifficultyLevel>();
+    
+    // Go through all selected activities to extract difficulty levels
+    selectedMetaActivities.forEach(activityId => {
+      const activity = activities['meta-activities']?.find(act => act._id === activityId);
+      
+      if (activity && activity.difficultyLevel) {
+        uniqueDifficulties.add(activity.difficultyLevel as DifficultyLevel);
+      }
+    });
+    
+    // Convert to array with labels and colors
+    return Array.from(uniqueDifficulties).map(level => ({
+      level,
+      label: difficultyLevelLabels[level],
+      color: difficultyLevelColors[level]
+    }));
+  };
+  
   // Get the appropriate count for the column badge
   const getColumnBadgeCount = (columnId: string) => {
     if (currentView === 'personal' || columnId === 'meta-activities') {
@@ -736,6 +861,18 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     setDeletingActivityId('');
   };
 
+  // Optimize the columns to not show loading when only specific activities are loading
+  const areAllAssignmentsLoading = () => {
+    return Object.values(isLoadingAssignments).some(loading => loading);
+  };
+
+  // Check if any assignments for selected activities might load in this column
+  const mightHaveAssignmentsLoading = (columnId: string) => {
+    // If no assignments in this column and some activities are loading,
+    // there might be assignments coming to this column
+    return getColumnAssignments(columnId).length === 0 && areAllAssignmentsLoading();
+  };
+
   // Loading state
   if (isLoading) {
     // Try to match the number of columns if possible
@@ -752,8 +889,8 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
           </div>
         </div>
         {/* Board columns skeleton - responsive grid */}
-        <div className="flex-1 overflow-hidden px-4 pb-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 h-full auto-rows-max">
+        <div className="flex-1 overflow-hidden px-4 pb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 h-full auto-rows-max pb-4">
             {Array(columnCount).fill(0).map((_, i) => (
               <Skeleton key={i} className="h-[400px] w-full rounded-lg" />
             ))}
@@ -826,7 +963,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
         )}
 
         {/* Board content - adjust for full screen */}
-        <div className="flex-1 overflow-hidden px-4 pb-4">
+        <div className="flex-1 overflow-hidden px-4 pb-8">
           {currentView === 'class' ? (
             <div className="w-full h-full">
               {/* Main Board Area */}
@@ -853,9 +990,12 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
                               // When opening the dropdown, initialize temp filters with current selection
                               if (open) {
                                 setTempStudentFilters(new Set(selectedStudentFilters));
+                                setTempTagFilters(new Set(selectedTagFilters));
+                                setTempDifficultyFilters(new Set(selectedDifficultyFilters));
                               } else {
                                 // Reset search query when closing
                                 setStudentSearchQuery('');
+                                setTagSearchQuery('');
                               }
                               setIsStudentFilterOpen(open);
                             }}>
@@ -866,112 +1006,343 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
                                   className="h-7 w-7 relative"
                                 >
                                   <Filter className="h-4 w-4" />
-                                  {selectedStudentFilters.size > 0 && (
+                                  {(selectedStudentFilters.size > 0 || selectedTagFilters.size > 0 || selectedDifficultyFilters.size > 0) && (
                                     <motion.span 
                                       initial={{ scale: 0 }}
                                       animate={{ scale: 1 }}
                                       className="absolute -top-1 -right-1 bg-primary text-[10px] text-primary-foreground rounded-full h-4 w-4 flex items-center justify-center"
                                     >
-                                      {selectedStudentFilters.size}
+                                      {selectedStudentFilters.size + selectedTagFilters.size + selectedDifficultyFilters.size}
                                     </motion.span>
                                   )}
-                                  <span className="sr-only">Filter by student</span>
+                                  <span className="sr-only">Advanced filters</span>
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-56">
+                              <DropdownMenuContent align="start" side="bottom" className="w-[280px] p-0 border-none shadow-lg rounded-lg" sideOffset={5}>
                                 <motion.div 
                                   initial={{ opacity: 0, y: -5 }}
                                   animate={{ opacity: 1, y: 0 }}
-                                  className="p-2"
+                                  className="bg-card border rounded-lg overflow-hidden"
                                 >
-                                  <h4 className="font-medium text-sm mb-2">Filter by student</h4>
-                                  
-                                  {/* Search input for students */}
-                                  <div className="mb-3 relative">
-                                    <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-                                    <Input
-                                      placeholder="Search students..."
-                                      value={studentSearchQuery}
-                                      onChange={(e) => setStudentSearchQuery(e.target.value)}
-                                      className="pl-7 h-7 text-xs"
-                                    />
+                                  <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
+                                    <h4 className="font-medium text-sm">Advanced Filters</h4>
+                                    <Badge variant="outline" className="font-normal text-xs">
+                                      {selectedStudentFilters.size + selectedTagFilters.size + selectedDifficultyFilters.size} active
+                                    </Badge>
                                   </div>
                                   
-                                  <div className="max-h-[200px] overflow-y-auto">
-                                    {/* Get all unique students from selected activities */}
-                                    {getUniqueStudentsFromSelectedActivities().length > 0 ? (
-                                      <div className="space-y-2">
-                                        {/* Select All option */}
-                                        <div className="flex items-center gap-2 border-b pb-2 mb-2">
-                                          <Checkbox 
-                                            id="student-filter-select-all" 
-                                            checked={tempStudentFilters.size === getUniqueStudentsFromSelectedActivities().length}
-                                            onCheckedChange={(checked) => {
-                                              if (checked) {
-                                                // Select all students
-                                                const allStudents = getUniqueStudentsFromSelectedActivities();
-                                                const allIds = new Set(allStudents.map(s => s._id));
-                                                setTempStudentFilters(allIds);
-                                              } else {
-                                                // Clear all selections
-                                                setTempStudentFilters(new Set());
-                                              }
-                                            }}
-                                          />
-                                          <label 
-                                            htmlFor="student-filter-select-all" 
-                                            className="text-sm font-medium cursor-pointer"
-                                          >
-                                            Select All
-                                          </label>
-                                        </div>
-                                        
-                                        {getUniqueStudentsFromSelectedActivities()
-                                          .filter(student => 
-                                            !studentSearchQuery || 
-                                            student.name.toLowerCase().includes(studentSearchQuery.toLowerCase())
-                                          )
-                                          .map(student => (
-                                            <div key={student._id} className="flex items-center gap-2">
-                                              <Checkbox 
-                                                id={`student-filter-${student._id}`} 
-                                                checked={tempStudentFilters.has(student._id)}
-                                                onCheckedChange={(checked) => {
-                                                  const newFilters = new Set(tempStudentFilters);
-                                                  if (checked) {
-                                                    newFilters.add(student._id);
-                                                  } else {
-                                                    newFilters.delete(student._id);
-                                                  }
-                                                  setTempStudentFilters(newFilters);
-                                                }}
-                                              />
-                                              <label 
-                                                htmlFor={`student-filter-${student._id}`} 
-                                                className="text-sm cursor-pointer flex items-center gap-2"
-                                              >
-                                                <Avatar className="h-5 w-5">
-                                                  <AvatarFallback className="text-[9px]">
-                                                    {student.name.substring(0, 2).toUpperCase()}
-                                                  </AvatarFallback>
-                                                </Avatar>
-                                                {student.name}
-                                              </label>
+                                  <Tabs 
+                                    value={activeFilterTab} 
+                                    onValueChange={(value) => setActiveFilterTab(value as 'students' | 'tags' | 'difficulty')} 
+                                    className="w-full"
+                                  >
+                                    <div className="border-b">
+                                      <TabsList className="w-full h-auto p-0 bg-transparent border-b rounded-none">
+                                        <TabsTrigger 
+                                          value="students" 
+                                          className="flex-1 py-2 rounded-none data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none text-xs"
+                                        >
+                                          <div className="flex items-center gap-1.5">
+                                            <UsersIcon className="h-3.5 w-3.5" />
+                                            <span>Students</span>
+                                            {selectedStudentFilters.size > 0 && (
+                                              <span className="bg-primary/15 text-[10px] rounded-full px-1.5 py-0.5">
+                                                {selectedStudentFilters.size}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </TabsTrigger>
+                                        <TabsTrigger 
+                                          value="tags" 
+                                          className="flex-1 py-2 rounded-none data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none text-xs"
+                                        >
+                                          <div className="flex items-center gap-1.5">
+                                            <TagIcon className="h-3.5 w-3.5" />
+                                            <span>Tags</span>
+                                            {selectedTagFilters.size > 0 && (
+                                              <span className="bg-primary/15 text-[10px] rounded-full px-1.5 py-0.5">
+                                                {selectedTagFilters.size}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </TabsTrigger>
+                                        <TabsTrigger 
+                                          value="difficulty" 
+                                          className="flex-1 py-2 rounded-none data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none text-xs"
+                                        >
+                                          <div className="flex items-center gap-1.5">
+                                            <AlertCircle className="h-3.5 w-3.5" />
+                                            <span>Difficulty</span>
+                                            {selectedDifficultyFilters.size > 0 && (
+                                              <span className="bg-primary/15 text-[10px] rounded-full px-1.5 py-0.5">
+                                                {selectedDifficultyFilters.size}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </TabsTrigger>
+                                      </TabsList>
+                                    </div>
+                                    
+                                    {/* Students tab content */}
+                                    <TabsContent value="students" className="p-3 focus-visible:outline-none focus-visible:ring-0">
+                                      {/* Search input for students */}
+                                      <div className="mb-3 relative">
+                                        <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                                        <Input
+                                          placeholder="Search students..."
+                                          value={studentSearchQuery}
+                                          onChange={(e) => setStudentSearchQuery(e.target.value)}
+                                          className="pl-7 h-7 text-xs"
+                                        />
+                                      </div>
+                                      
+                                      <div className="max-h-[200px] overflow-y-auto border rounded-md">
+                                        {/* Get all unique students from selected activities */}
+                                        {getUniqueStudentsFromSelectedActivities().length > 0 ? (
+                                          <div className="divide-y">
+                                            {/* Select All option */}
+                                            <div className="p-2 bg-muted/30">
+                                              <div className="flex items-center gap-2">
+                                                <Checkbox 
+                                                  id="student-filter-select-all" 
+                                                  checked={tempStudentFilters.size === getUniqueStudentsFromSelectedActivities().length}
+                                                  onCheckedChange={(checked) => {
+                                                    if (checked) {
+                                                      // Select all students
+                                                      const allStudents = getUniqueStudentsFromSelectedActivities();
+                                                      const allIds = new Set(allStudents.map(s => s._id));
+                                                      setTempStudentFilters(allIds);
+                                                    } else {
+                                                      // Clear all selections
+                                                      setTempStudentFilters(new Set());
+                                                    }
+                                                  }}
+                                                />
+                                                <label 
+                                                  htmlFor="student-filter-select-all" 
+                                                  className="text-xs font-medium cursor-pointer"
+                                                >
+                                                  Select All
+                                                </label>
+                                              </div>
                                             </div>
-                                          ))}
+                                            
+                                            <div className="p-1">
+                                              {getUniqueStudentsFromSelectedActivities()
+                                                .filter(student => 
+                                                  !studentSearchQuery || 
+                                                  student.name.toLowerCase().includes(studentSearchQuery.toLowerCase())
+                                                )
+                                                .map(student => (
+                                                  <div key={student._id} className="flex items-center gap-2 p-1.5 hover:bg-muted/50 rounded">
+                                                    <Checkbox 
+                                                      id={`student-filter-${student._id}`} 
+                                                      checked={tempStudentFilters.has(student._id)}
+                                                      onCheckedChange={(checked) => {
+                                                        const newFilters = new Set(tempStudentFilters);
+                                                        if (checked) {
+                                                          newFilters.add(student._id);
+                                                        } else {
+                                                          newFilters.delete(student._id);
+                                                        }
+                                                        setTempStudentFilters(newFilters);
+                                                      }}
+                                                    />
+                                                    <label 
+                                                      htmlFor={`student-filter-${student._id}`} 
+                                                      className="text-xs cursor-pointer flex items-center gap-2"
+                                                    >
+                                                      <Avatar className="h-5 w-5">
+                                                        <AvatarFallback className="text-[9px]">
+                                                          {student.name.substring(0, 2).toUpperCase()}
+                                                        </AvatarFallback>
+                                                      </Avatar>
+                                                      <span className="truncate">{student.name}</span>
+                                                    </label>
+                                                  </div>
+                                                ))}
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <div className="text-xs text-muted-foreground text-center py-4">
+                                            No students available
+                                          </div>
+                                        )}
                                       </div>
-                                    ) : (
-                                      <div className="text-xs text-muted-foreground text-center py-2">
-                                        No students available
+                                    </TabsContent>
+                                    
+                                    {/* Tags tab content */}
+                                    <TabsContent value="tags" className="p-3 focus-visible:outline-none focus-visible:ring-0">
+                                      {/* Search input for tags */}
+                                      <div className="mb-3 relative">
+                                        <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                                        <Input
+                                          placeholder="Search tags..."
+                                          value={tagSearchQuery}
+                                          onChange={(e) => setTagSearchQuery(e.target.value)}
+                                          className="pl-7 h-7 text-xs"
+                                        />
                                       </div>
-                                    )}
-                                  </div>
-                                  <div className="mt-4 flex items-center justify-between">
+                                      
+                                      <div className="max-h-[200px] overflow-y-auto border rounded-md">
+                                        {/* Get all unique tags from selected activities */}
+                                        {getUniqueTagsFromSelectedActivities().length > 0 ? (
+                                          <div className="divide-y">
+                                            {/* Select All option */}
+                                            <div className="p-2 bg-muted/30">
+                                              <div className="flex items-center gap-2">
+                                                <Checkbox 
+                                                  id="tag-filter-select-all" 
+                                                  checked={tempTagFilters.size === getUniqueTagsFromSelectedActivities().length}
+                                                  onCheckedChange={(checked) => {
+                                                    if (checked) {
+                                                      // Select all tags
+                                                      const allTags = getUniqueTagsFromSelectedActivities();
+                                                      const allIds = new Set(allTags.map(t => t._id));
+                                                      setTempTagFilters(allIds);
+                                                    } else {
+                                                      // Clear all selections
+                                                      setTempTagFilters(new Set());
+                                                    }
+                                                  }}
+                                                />
+                                                <label 
+                                                  htmlFor="tag-filter-select-all" 
+                                                  className="text-xs font-medium cursor-pointer"
+                                                >
+                                                  Select All
+                                                </label>
+                                              </div>
+                                            </div>
+                                            
+                                            <div className="p-1">
+                                              {getUniqueTagsFromSelectedActivities()
+                                                .filter(tag => 
+                                                  !tagSearchQuery || 
+                                                  tag.name.toLowerCase().includes(tagSearchQuery.toLowerCase())
+                                                )
+                                                .map(tag => (
+                                                  <div key={tag._id} className="flex items-center gap-2 p-1.5 hover:bg-muted/50 rounded">
+                                                    <Checkbox 
+                                                      id={`tag-filter-${tag._id}`} 
+                                                      checked={tempTagFilters.has(tag._id)}
+                                                      onCheckedChange={(checked) => {
+                                                        const newFilters = new Set(tempTagFilters);
+                                                        if (checked) {
+                                                          newFilters.add(tag._id);
+                                                        } else {
+                                                          newFilters.delete(tag._id);
+                                                        }
+                                                        setTempTagFilters(newFilters);
+                                                      }}
+                                                    />
+                                                    <label 
+                                                      htmlFor={`tag-filter-${tag._id}`} 
+                                                      className="text-xs cursor-pointer flex items-center gap-2"
+                                                    >
+                                                      <span 
+                                                        className="h-3 w-3 rounded-full flex-shrink-0" 
+                                                        style={{ backgroundColor: tag.color }}
+                                                      ></span>
+                                                      <span className="truncate">{tag.name}</span>
+                                                    </label>
+                                                  </div>
+                                                ))}
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <div className="text-xs text-muted-foreground text-center py-4">
+                                            No tags available
+                                          </div>
+                                        )}
+                                      </div>
+                                    </TabsContent>
+                                    
+                                    {/* Difficulty tab content */}
+                                    <TabsContent value="difficulty" className="p-3 focus-visible:outline-none focus-visible:ring-0">
+                                      <div className="max-h-[200px] overflow-y-auto border rounded-md">
+                                        {/* Get all unique difficulty levels from selected activities */}
+                                        {getUniqueDifficultyLevelsFromSelectedActivities().length > 0 ? (
+                                          <div className="divide-y">
+                                            {/* Select All option */}
+                                            <div className="p-2 bg-muted/30">
+                                              <div className="flex items-center gap-2">
+                                                <Checkbox 
+                                                  id="difficulty-filter-select-all" 
+                                                  checked={tempDifficultyFilters.size === getUniqueDifficultyLevelsFromSelectedActivities().length}
+                                                  onCheckedChange={(checked) => {
+                                                    if (checked) {
+                                                      // Select all difficulty levels
+                                                      const allLevels = getUniqueDifficultyLevelsFromSelectedActivities();
+                                                      const allIds = new Set(allLevels.map(d => d.level));
+                                                      setTempDifficultyFilters(allIds);
+                                                    } else {
+                                                      // Clear all selections
+                                                      setTempDifficultyFilters(new Set());
+                                                    }
+                                                  }}
+                                                />
+                                                <label 
+                                                  htmlFor="difficulty-filter-select-all" 
+                                                  className="text-xs font-medium cursor-pointer"
+                                                >
+                                                  Select All
+                                                </label>
+                                              </div>
+                                            </div>
+                                            
+                                            <div className="p-1">
+                                              {getUniqueDifficultyLevelsFromSelectedActivities()
+                                                .map(difficulty => (
+                                                  <div key={difficulty.level} className="flex items-center gap-2 p-1.5 hover:bg-muted/50 rounded">
+                                                    <Checkbox 
+                                                      id={`difficulty-filter-${difficulty.level}`} 
+                                                      checked={tempDifficultyFilters.has(difficulty.level)}
+                                                      onCheckedChange={(checked) => {
+                                                        const newFilters = new Set(tempDifficultyFilters);
+                                                        if (checked) {
+                                                          newFilters.add(difficulty.level);
+                                                        } else {
+                                                          newFilters.delete(difficulty.level);
+                                                        }
+                                                        setTempDifficultyFilters(newFilters);
+                                                      }}
+                                                    />
+                                                    <label 
+                                                      htmlFor={`difficulty-filter-${difficulty.level}`} 
+                                                      className="text-xs cursor-pointer flex items-center gap-2"
+                                                    >
+                                                      <span 
+                                                        className="h-3 w-3 rounded flex-shrink-0" 
+                                                        style={{ backgroundColor: difficulty.color }}
+                                                      ></span>
+                                                      <span className="truncate">{difficulty.label}</span>
+                                                    </label>
+                                                  </div>
+                                                ))}
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <div className="text-xs text-muted-foreground text-center py-4">
+                                            No difficulty levels available
+                                          </div>
+                                        )}
+                                      </div>
+                                    </TabsContent>
+                                  </Tabs>
+                                  
+                                  <div className="p-3 border-t bg-muted/10 flex items-center justify-between">
                                     <Button 
                                       variant="outline" 
                                       size="sm"
-                                      onClick={() => setTempStudentFilters(new Set())}
-                                      disabled={tempStudentFilters.size === 0}
+                                      onClick={() => {
+                                        // Reset all temporary filters
+                                        setTempStudentFilters(new Set());
+                                        setTempTagFilters(new Set());
+                                        setTempDifficultyFilters(new Set());
+                                      }}
+                                      disabled={tempStudentFilters.size === 0 && tempTagFilters.size === 0 && tempDifficultyFilters.size === 0}
+                                      className="h-7 text-xs"
                                     >
                                       Clear all
                                     </Button>
@@ -980,6 +1351,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
                                         variant="ghost" 
                                         size="sm"
                                         onClick={() => setIsStudentFilterOpen(false)}
+                                        className="h-7 text-xs"
                                       >
                                         Cancel
                                       </Button>
@@ -987,10 +1359,13 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
                                         variant="default" 
                                         size="sm"
                                         onClick={() => {
-                                          // Apply the temporary filters to the actual filters
+                                          // Apply all filters
                                           setSelectedStudentFilters(new Set(tempStudentFilters));
+                                          setSelectedTagFilters(new Set(tempTagFilters));
+                                          setSelectedDifficultyFilters(new Set(tempDifficultyFilters));
                                           setIsStudentFilterOpen(false);
                                         }}
+                                        className="h-7 text-xs"
                                       >
                                         Apply
                                       </Button>
@@ -1005,7 +1380,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
                             size="icon" 
                             className="h-7 w-7" 
                             onClick={selectAllMetaActivities}
-                            disabled={Object.values(isLoadingAssignments).some(loading => loading)}
+                            disabled={areAllAssignmentsLoading()}
                           >
                             {activities['meta-activities']?.length > 0 && 
                              selectedMetaActivities.size === activities['meta-activities']?.length ? (
@@ -1032,7 +1407,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
                       </div>
                       
                       {/* Activities List */}
-                      <div className="flex-1 p-2 overflow-y-auto max-h-[calc(100vh-180px)]">
+                      <div className="flex-1 p-2 pb-4 overflow-y-auto max-h-[calc(100vh-180px)]">
                         <AnimatePresence>
                           {isLoadingActivities ? (
                             // Skeleton loaders for activities
@@ -1121,53 +1496,55 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
                             )}
                           </div>
                           {/* Student filter badge - only show in class view when filters are active */}
-                          {currentView === 'class' && selectedStudentFilters.size > 0 && (
+                          {currentView === 'class' && (selectedStudentFilters.size > 0 || selectedTagFilters.size > 0 || selectedDifficultyFilters.size > 0) && (
                             <motion.div
                               initial={{ opacity: 0, scale: 0.8 }}
                               animate={{ opacity: 1, scale: 1 }}
                               className="ml-auto mr-2 flex items-center gap-2"
                             >
+                              {/* Show active filter counts */}
+                              <div className="flex items-center gap-1">
+                                {selectedStudentFilters.size > 0 && (
+                                  <Badge variant="outline" className="bg-muted/30 px-1.5 h-5 text-[10px]">
+                                    <UsersIcon className="h-2.5 w-2.5 mr-0.5" />
+                                    {selectedStudentFilters.size}
+                                  </Badge>
+                                )}
+                                {selectedTagFilters.size > 0 && (
+                                  <Badge variant="outline" className="bg-muted/30 px-1.5 h-5 text-[10px]">
+                                    <TagIcon className="h-2.5 w-2.5 mr-0.5" />
+                                    {selectedTagFilters.size}
+                                  </Badge>
+                                )}
+                                {selectedDifficultyFilters.size > 0 && (
+                                  <Badge variant="outline" className="bg-muted/30 px-1.5 h-5 text-[10px]">
+                                    <AlertCircle className="h-2.5 w-2.5 mr-0.5" />
+                                    {selectedDifficultyFilters.size}
+                                  </Badge>
+                                )}
+                              </div>
+
                               <Button 
                                 variant="ghost" 
                                 size="icon" 
                                 className="h-5 w-5" 
-                                onClick={() => setSelectedStudentFilters(new Set())}
+                                onClick={() => {
+                                  // Clear all filters
+                                  setSelectedStudentFilters(new Set());
+                                  setSelectedTagFilters(new Set());
+                                  setSelectedDifficultyFilters(new Set());
+                                }}
                                 title="Clear filters"
                               >
                                 <X className="h-3 w-3" />
                                 <span className="sr-only">Clear filters</span>
                               </Button>
-                              
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Badge variant="outline" className="flex items-center gap-1 text-xs border-amber-200 text-amber-700 dark:border-amber-800 dark:text-amber-400 cursor-help">
-                                      <Filter className="h-3 w-3" />
-                                      <span>{selectedStudentFilters.size}</span>
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="bottom">
-                                    <p className="text-xs font-medium mb-1">Filtered students:</p>
-                                    <ul className="text-xs space-y-1 max-w-[200px]">
-                                      {Array.from(selectedStudentFilters).map(studentId => {
-                                        const student = getUniqueStudentsFromSelectedActivities().find(s => s._id === studentId);
-                                        return (
-                                          <li key={studentId} className="flex items-center gap-1">
-                                            <span className="h-2 w-2 rounded-full bg-amber-500"></span>
-                                            {student?.name || 'Unknown student'}
-                                          </li>
-                                        );
-                                      })}
-                                    </ul>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
                             </motion.div>
                           )}
                         </div>
 
                         {/* Activities */}
-                        <div className="flex-1 p-2 overflow-y-auto max-h-[calc(100vh-180px)]">
+                        <div className="flex-1 p-2 pb-4 overflow-y-auto max-h-[calc(100vh-180px)]">
                           <AnimatePresence>
                             {/* Assignments in class view */}
                             {currentView === 'class' && column.id !== 'meta-activities' && (
@@ -1184,18 +1561,17 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
                                   />
                                 ))}
                                 
-                                {/* Loading indicator for when assignments are being fetched */}
+                                {/* Only show column loading indicator if this column might receive assignments */}
                                 {selectedMetaActivities.size > 0 && 
-                                 Object.values(isLoadingAssignments).some(loading => loading) && (
+                                 mightHaveAssignmentsLoading(column.id) && (
                                   <motion.div 
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
                                     exit={{ opacity: 0 }}
-                                    className="flex justify-center items-center p-6 text-sm text-muted-foreground border border-dashed rounded-md"
+                                    className="flex justify-center items-center p-4 text-sm text-muted-foreground"
                                   >
                                     <div className="flex items-center gap-2">
-                                      <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
-                                      <span>Loading assignments...</span>
+                                      <div className="h-3 w-3 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
                                     </div>
                                   </motion.div>
                                 )}
@@ -1203,20 +1579,38 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
                                 {/* Empty state for no assignments in a column - only show when not loading */}
                                 {getColumnAssignments(column.id).length === 0 && 
                                  selectedMetaActivities.size > 0 && 
-                                 !Object.values(isLoadingAssignments).some(loading => loading) && (
+                                 !areAllAssignmentsLoading() && (
                                   <motion.div 
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
                                     exit={{ opacity: 0 }}
                                     className="flex flex-col items-center p-6 text-sm text-muted-foreground border border-dashed rounded-md"
                                   >
-                                    {selectedStudentFilters.size > 0 ? (
+                                    {selectedStudentFilters.size > 0 || selectedTagFilters.size > 0 || selectedDifficultyFilters.size > 0 ? (
                                       <>
                                         <Filter className="h-4 w-4 mb-2 text-muted-foreground/50" />
                                         <span>No matching assignments</span>
-                                        <span className="text-xs mt-1">
-                                          Student filter active ({selectedStudentFilters.size})
-                                        </span>
+                                        <div className="text-xs mt-1 flex items-center gap-1.5 flex-wrap justify-center">
+                                          {selectedStudentFilters.size > 0 && (
+                                            <span className="inline-flex items-center gap-1">
+                                              <UsersIcon className="h-3 w-3" /> 
+                                              {selectedStudentFilters.size}
+                                            </span>
+                                          )}
+                                          {selectedTagFilters.size > 0 && (
+                                            <span className="inline-flex items-center gap-1">
+                                              <TagIcon className="h-3 w-3" />
+                                              {selectedTagFilters.size}
+                                            </span>
+                                          )}
+                                          {selectedDifficultyFilters.size > 0 && (
+                                            <span className="inline-flex items-center gap-1">
+                                              <AlertCircle className="h-3 w-3" />
+                                              {selectedDifficultyFilters.size}
+                                            </span>
+                                          )}
+                                          <span>filters active</span>
+                                        </div>
                                       </>
                                     ) : (
                                       <>
@@ -1229,15 +1623,17 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
                                 
                                 {/* Message to select meta activities - only show when not loading */}
                                 {selectedMetaActivities.size === 0 && 
-                                 !Object.values(isLoadingAssignments).some(loading => loading) && (
+                                 !isLoadingActivities && 
+                                 currentView === 'class' &&
+                                 column.id !== 'meta-activities' && (
                                   <motion.div 
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
                                     exit={{ opacity: 0 }}
                                     className="flex flex-col items-center p-6 text-sm text-muted-foreground border border-dashed rounded-md"
                                   >
-                                    <span className="mb-1">Select class activities</span>
-                                    <span className="text-xs">to view student assignments</span>
+                                    <span>Select class activities</span>
+                                    <span className="text-xs mt-1">to view student assignments</span>
                                   </motion.div>
                                 )}
                               </>
@@ -1253,7 +1649,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
           ) : (
             // Personal view - responsive grid that adjusts to screen width
             <div className="w-full h-full">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-max">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-max pb-4">
                 {getColumnsForView().map((column) => (
                   <div 
                     key={column.id}
@@ -1285,7 +1681,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
                     </div>
 
                     {/* Activities */}
-                    <div className="flex-1 p-2 overflow-y-auto max-h-[calc(100vh-180px)]">
+                    <div className="flex-1 p-2 pb-4 overflow-y-auto max-h-[calc(100vh-180px)]">
                       <div className="space-y-2">
                         {isLoadingActivities ? (
                           // Activity loading skeletons

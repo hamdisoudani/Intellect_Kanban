@@ -153,6 +153,13 @@ export function KanbanActivityCard({
     }
   };
 
+  // Helper function to truncate tag names if needed
+  const truncateTagName = (name: string) => {
+    const maxLength = 12;
+    if (name.length <= maxLength) return name;
+    return `${name.substring(0, maxLength)}...`;
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -214,7 +221,7 @@ export function KanbanActivityCard({
           </div>
           
           {/* Meta information and priority */}
-          <div className="flex justify-between items-center gap-1 text-[10px] text-muted-foreground mb-1.5">
+          <div className="flex justify-between items-center gap-1 text-[10px] text-muted-foreground mb-2">
             <div className="flex items-center gap-1.5">
               {/* Activity type indicator */}
               {isMetaActivity ? (
@@ -246,18 +253,60 @@ export function KanbanActivityCard({
             )}
           </div>
           
-          {/* Tags section - now using resolvedTags instead of activity.tags directly */}
+          {/* Tags section - optimized to limit display to 5 tags with a +X indicator */}
           {resolvedTags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-2">
-              {resolvedTags.map((tag: TagType, index: number) => (
-                <Tag
-                  key={tag._id || `tag-${index}`}
-                  label={tag.name || 'Unnamed tag'}
-                  color={tag.color || '#6366F1'}
-                  size="sm"
-                  className="py-0 px-1.5 text-[10px]"
-                />
+            <div className="flex flex-wrap gap-1 mb-2 max-w-full">
+              {resolvedTags.slice(0, 5).map((tag: TagType, index: number) => (
+                <TooltipProvider key={tag._id || `tag-${index}`}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div>
+                        <Tag
+                          label={truncateTagName(tag.name || 'Unnamed tag')}
+                          color={tag.color || '#6366F1'}
+                          size="sm"
+                          className="py-0 px-1.5 text-[10px] max-w-[75px] truncate"
+                        />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <p className="text-xs">{tag.name}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               ))}
+              {resolvedTags.length > 5 && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge 
+                        variant="outline" 
+                        className="py-0 px-1.5 text-[10px] bg-muted/30 cursor-help"
+                      >
+                        +{resolvedTags.length - 5}
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" align="center" className="p-2 max-w-[200px]">
+                      <div className="text-xs font-medium mb-1">Additional tags:</div>
+                      <div className="flex flex-wrap gap-1">
+                        {resolvedTags.slice(5).map((tag, idx) => (
+                          <span 
+                            key={idx}
+                            className="inline-flex items-center text-[10px]"
+                          >
+                            <span 
+                              className="inline-block h-2 w-2 rounded-full mr-1" 
+                              style={{ backgroundColor: tag.color }}
+                            />
+                            {tag.name}
+                            {idx < resolvedTags.slice(5).length - 1 && ", "}
+                          </span>
+                        ))}
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </div>
           )}
           

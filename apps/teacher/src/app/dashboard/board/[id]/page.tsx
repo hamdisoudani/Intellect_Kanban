@@ -1,4 +1,3 @@
-import { DashboardPage } from '@intellect-kanban/ui';
 import { KanbanBoard } from '@/components/board/KanbanBoard';
 
 type BoardPageProps = {
@@ -15,7 +14,7 @@ export default async function BoardPage({ params }: BoardPageProps) {
   const { id } = await params;
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col">
       <KanbanBoard boardId={id} />
     </div>
   );
