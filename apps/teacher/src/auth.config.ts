@@ -1,7 +1,19 @@
 import { type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { loginSchema, apiClient } from "@intellect-kanban/utils";
-import type { AuthResponse } from "@intellect-kanban/utils";
+import { loginSchema } from "@intellect-kanban/utils";
+
+// Define response types explicitly to avoid type errors
+interface User {
+  email: string;
+  name: string;
+  role: string;
+}
+
+interface AuthResponse {
+  success: boolean;
+  token: string;
+  user: User;
+}
 
 // Type definitions are in ./types/auth.d.ts
 
@@ -30,21 +42,33 @@ export const authConfig = {
         }
 
         try {
-          // Make API call to backend for authentication
-          const response = await apiClient.post<AuthResponse>('/auth/login', {
-            email: credentials.email,
-            password: credentials.password,
+          // Use our secure API route instead of calling backend directly
+          const response = await fetch(`${process.env.NEXT_PUBLIC_TEACHER_APP_URL}/api/login`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: credentials.email,
+              password: credentials.password,
+              // No need to specify role here as it's hardcoded in the API route
+            }),
           });
 
-          const { success, token, user } = response.data;
+          if (!response.ok) {
+            const error = await response.json();
+            console.error('Authentication error:', error);
+            return null;
+          }
+
+          const data = await response.json() as AuthResponse;
+          const { success, token, user } = data;
 
           if (!success || !token || !user) return null;
 
           // Return the user object and include the token in it
-          // NextAuth will automatically create a JWT from this
           return {
-            // Backend doesn't provide ID directly, so we'll use empty string
-            id: "", 
+            id: "",
             email: user.email,
             name: user.name,
             role: user.role,
@@ -71,8 +95,8 @@ export const authConfig = {
     session: async ({ session, token }) => {
       if (token) {
         // The token values are now properly typed via the JWT interface extension
-        session.user.role = token.role;
-        session.user.accessToken = token.accessToken;
+        session.user.role = token.role as string;
+        session.user.accessToken = token.accessToken as string;
       }
       return session;
     },

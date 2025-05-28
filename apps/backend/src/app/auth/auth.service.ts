@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, ConflictException, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
@@ -43,10 +43,16 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto) {
-    const { email, password } = loginDto;
+    const { email, password, expectedRole } = loginDto;
 
     // Validate user credentials
     const user = await this.validateUser(email, password);
+    
+    // Check if the user's role matches the expected role
+    if (user.role !== expectedRole) {
+      // Use a generic error message for security
+      throw new UnauthorizedException('Invalid email or password');
+    }
     
     // Generate JWT token
     const payload: JwtPayload = { 

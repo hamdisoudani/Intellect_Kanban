@@ -7,11 +7,11 @@ import { login } from '../server/auth-actions';
 import { EyeIcon, EyeOffIcon, GraduationCap } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import { toast } from 'sonner';
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -20,15 +20,20 @@ export default function LoginPage() {
 
   const handleSubmit = async (values: { email: string; password: string }) => {
     setIsLoading(true);
-    setError(null);
     try {
       const result = await login(values.email, values.password, '/dashboard');
+      
+      // Only show error toast for actual authentication errors
+      // NextAuth redirects are handled by the login function and don't need toasts
       if (result?.error) {
-        setError(result.error);
+        toast.error(result.error);
       }
     } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
-      console.error('Login error:', err);
+      // We don't show toast for NEXT_REDIRECT errors as they're part of the normal auth flow
+      if (!(err instanceof Error && err.message === 'NEXT_REDIRECT')) {
+        toast.error('An unexpected error occurred. Please try again.');
+        console.error('Login error:', err);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -163,36 +168,6 @@ export default function LoginPage() {
                 Sign in to manage your learning journey
               </motion.p>
             </div>
-
-            {/* Error message */}
-            {error && (
-              <motion.div 
-                className="mb-6 p-4 rounded-xl bg-destructive/10 text-destructive flex items-center gap-3"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-              >
-                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-destructive/20">
-                  <svg 
-                    width="16" 
-                    height="16" 
-                    viewBox="0 0 16 16" 
-                    fill="none" 
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="text-destructive"
-                  >
-                    <path 
-                      d="M8 5.33333V8M8 10.6667H8.00667M14 8C14 11.3137 11.3137 14 8 14C4.68629 14 2 11.3137 2 8C2 4.68629 4.68629 2 8 2C11.3137 2 14 4.68629 14 8Z" 
-                      stroke="currentColor" 
-                      strokeWidth="1.5" 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </div>
-                <span className="font-medium">{error}</span>
-              </motion.div>
-            )}
 
             {/* Login form */}
             <Formik
@@ -332,7 +307,7 @@ export default function LoginPage() {
               )}
             </Formik>
 
-            {/* Sign up link */}
+            {/* Signup link */}
             <motion.div 
               className="mt-6 text-center"
               initial={{ opacity: 0 }}
@@ -345,7 +320,7 @@ export default function LoginPage() {
                   href="/signup" 
                   className="text-primary font-medium hover:underline transition-all"
                 >
-                  Create account
+                  Create one
                 </Link>
               </p>
             </motion.div>

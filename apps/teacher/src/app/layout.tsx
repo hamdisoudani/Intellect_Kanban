@@ -23,7 +23,16 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           {children}
-          <Toaster />
+          <Toaster 
+            position="top-right"
+            expand={false}
+            richColors
+            closeButton
+            toastOptions={{
+              duration: 5000,
+              className: "rounded-xl border border-border/50",
+            }}
+          />
         </ThemeProvider>
       </body>
     </html>

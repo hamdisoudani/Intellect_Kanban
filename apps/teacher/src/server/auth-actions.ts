@@ -46,6 +46,52 @@ export async function login(
 }
 
 /**
+ * Server action to handle signup
+ */
+export async function signup(
+  name: string,
+  email: string,
+  password: string
+) {
+  // Check if a session already exists, if yes, forbid signup
+  const session = await auth();
+  if (session) {
+    return { error: "You are already logged in" };
+  }
+
+  try {
+    // Use the API route instead of directly calling the backend
+    const response = await fetch(`${process.env.NEXT_PUBLIC_TEACHER_APP_URL}/api/signup`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name,
+        email,
+        password
+      }),
+    });
+
+    const data = await response.json();
+
+    // If signup fails, return the error
+    if (!response.ok) {
+      return { 
+        error: data.message || 'Failed to create account' 
+      };
+    }
+
+    // Return success message that will be shown to the user
+    return { success: true, message: 'Account created successfully! You can now login.' };
+  } catch (error) {
+    // Handle any errors
+    console.error('Signup error:', error);
+    return { error: "An unexpected error occurred during signup" };
+  }
+}
+
+/**
  * Server action to handle logout
  */
 export async function logout() {
