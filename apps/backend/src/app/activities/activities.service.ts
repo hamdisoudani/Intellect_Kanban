@@ -9,7 +9,6 @@ import { UsersService } from '../users/users.service';
 import { ClassesService } from '../classes/classes.service';
 import { AssignmentsService } from '../assignments/assignments.service';
 import { TagsService } from '../tags/tags.service';
-import { TagDocument } from '../tags/schemas/tag.schema';
 
 @Injectable()
 export class ActivitiesService {
@@ -19,7 +18,7 @@ export class ActivitiesService {
     private readonly usersService: UsersService,
     private readonly classesService: ClassesService,
     private readonly assignmentsService: AssignmentsService,
-    private readonly tagsService: TagsService,
+    private readonly tagsService: TagsService
   ) {}
 
   /**
@@ -124,11 +123,9 @@ export class ActivitiesService {
           .populate('tags', '_id name color')
           .exec();
 
-        if (!populatedActivity) {
-          return savedActivity; // Fallback to unpopulated activity if population fails
-        }
 
-        return populatedActivity;
+        // Fallback to unpopulated activity
+        return savedActivity; 
       }
       if (createActivityDto.type === 'meta') {
         // assignedStudents can be empty or undefined
@@ -171,10 +168,12 @@ export class ActivitiesService {
         
         // Create assignments for each student if any
         if (validStudentIds.length > 0) {
-          await this.assignmentsService.createBatch({
+          const assignments = await this.assignmentsService.createBatch({
             activityId: (savedActivity._id as Types.ObjectId).toString(),
             studentIds: validStudentIds.map(id => id.toString()),
           }, board._id.toString());
+          
+          
         }
         
         // Populate the tag information before returning
@@ -184,11 +183,13 @@ export class ActivitiesService {
           .populate('tags', '_id name color')
           .exec();
 
-        if (!populatedActivity) {
-          return savedActivity; // Fallback to unpopulated activity if population fails
+        // Emit real-time update
+        if (populatedActivity) {
+          
+          return populatedActivity;
         }
 
-        return populatedActivity;
+        return savedActivity; // Fallback to unpopulated activity if population fails
       }
       throw new BadRequestException('Invalid activity type.');
     } catch (error: any) {
@@ -200,16 +201,10 @@ export class ActivitiesService {
       ) {
         throw error;
       }
-      // Handle Mongoose validation errors
-      if (error.name === 'ValidationError') {
-        throw new BadRequestException('Invalid activity data: ' + error.message);
-      }
-      // Handle duplicate key error
-      if (error.code === 11000) {
-        throw new BadRequestException('An activity with this title already exists for this board');
-      }
-      // Handle other errors
-      throw new BadRequestException('Failed to create activity: ' + error.message);
+      // Otherwise, wrap it in a BadRequestException
+      throw new BadRequestException(
+        error.message || 'Failed to create activity'
+      );
     }
   }
 
@@ -542,68 +537,40 @@ export class ActivitiesService {
    */
   async remove(id: string, userId: string, userRole: string): Promise<void> {
     try {
-      const activity = await this.findOne(id);
-      
-      // Handle both populated and non-populated createdBy field
-      const createdById = typeof activity.createdBy === 'object' && activity.createdBy !== null 
-        ? (activity.createdBy as any)._id.toString() 
-        : String(activity.createdBy);
-      
-      // Check if user has permission (admin or creator)
-      if (userRole !== UserRole.ADMIN && createdById !== userId) {
-        throw new ForbiddenException('You do not have permission to delete this activity');
+      // Find the activity first to get its boardId for notifications
+      const activity = await this.activityModel.findById(id).exec();
+      if (!activity) {
+        throw new NotFoundException(`Activity with ID ${id} not found`);
       }
-      
-      await this.activityModel.findByIdAndDelete(id).exec();
-    } catch (error: any) {
-      // If error is already a NestJS HTTP exception, rethrow it
-      if (error instanceof NotFoundException || error instanceof ForbiddenException) {
-        throw error;
-      }
-      
-      throw new BadRequestException('Failed to delete activity: ' + error.message);
-    }
-  }
 
-  /**
-   * Update an activity's column - only for personal activities
-   */
-  async updateColumn(activityId: string, columnId: string, userId: string): Promise<ActivityDocument> {
-    try {
-      // Get the activity to check permissions and type
-      const activity = await this.findOne(activityId);
+      // Store boardId for later use in notifications
+      const boardId = activity.boardId.toString();
       
-      // Check if user has permission to update this activity
-      // Handle both populated and non-populated createdBy field
-      const createdById = typeof activity.createdBy === 'object' && activity.createdBy !== null 
-        ? (activity.createdBy as any)._id.toString() 
-        : String(activity.createdBy);
-        
-      if (createdById !== userId) {
-        throw new ForbiddenException('You can only update columns for activities you have created');
+      // Check if user has permission
+      if (userRole === UserRole.STUDENT) {
+        throw new ForbiddenException('Students cannot delete activities');
       }
-      
-      // Only allow updating column for personal activities
-      if (activity.type !== 'personal') {
-        throw new BadRequestException('Only personal activities can be moved between columns');
+
+      if (userRole === UserRole.TEACHER) {
+        const createdById = typeof activity.createdBy === 'object' && activity.createdBy !== null
+          ? (activity.createdBy as any)._id.toString()
+          : String(activity.createdBy);
+        if (createdById !== userId) {
+          throw new ForbiddenException('Teachers can only delete their own activities');
+        }
       }
-      
-      // Track column transition in history
-      const now = new Date();
-      const newColumnTransition = { columnId, enteredAt: now };
-      
-      // Initialize column history if it doesn't exist
-      if (!activity.columnHistory) {
-        activity.columnHistory = [];
+
+      // For meta activities, also delete associated assignments
+      if (activity.type === 'meta') {
+        await this.assignmentsService.removeByActivityId(id);
       }
-      
-      // Update the activity with the new column and add to history
-      activity.columnId = columnId;
-      activity.columnHistory.push(newColumnTransition);
-      
-      return await activity.save();
+
+      // Delete the activity
+      const result = await this.activityModel.findByIdAndDelete(id).exec();
+      if (!result) {
+        throw new NotFoundException(`Activity with ID ${id} not found`);
+      }
     } catch (error: any) {
-      // If error is already a NestJS HTTP exception, rethrow it
       if (
         error instanceof NotFoundException ||
         error instanceof ForbiddenException ||
@@ -611,8 +578,73 @@ export class ActivitiesService {
       ) {
         throw error;
       }
+      throw new BadRequestException(error.message || 'Failed to delete activity');
+    }
+  }
+
+  /**
+   * Update the column of a personal activity
+   */
+  async updateColumn(activityId: string, columnId: string, userId: string): Promise<ActivityDocument> {
+    try {
+      // Find the activity
+      const activity = await this.activityModel.findById(activityId).exec();
+      if (!activity) {
+        throw new NotFoundException(`Activity with ID ${activityId} not found`);
+      }
+
+      // Verify this is a personal activity
+      if (activity.type !== 'personal') {
+        throw new BadRequestException('Only personal activities can be moved between columns');
+      }
+
+      // Verify the user is the creator of the activity
+      const createdById = activity.createdBy instanceof Types.ObjectId
+        ? activity.createdBy.toString()
+        : (activity.createdBy as any)._id?.toString();
+      if (createdById !== userId) {
+        throw new ForbiddenException('You can only move activities you have created');
+      }
+
+      // Update the column and add to history
+      activity.columnId = columnId;
+      const columnTransition = {
+        columnId,
+        enteredAt: new Date()
+      };
+
+      // Initialize columnHistory if it doesn't exist
+      if (!activity.columnHistory) {
+        activity.columnHistory = [];
+      }
+
+      activity.columnHistory.push(columnTransition);
+      await activity.save();
+
+      // Populate references before returning
+      const populatedActivity = await this.activityModel.findById(activityId)
+        .populate('createdBy', 'name _id')
+        .populate('tags', '_id name color')
+        .exec();
+
+      // Emit real-time update
+      if (populatedActivity) {
+        
+        return populatedActivity;
+      }
       
-      throw new BadRequestException('Failed to update activity column: ' + error.message);
+      return activity;
+    } catch (error: any) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      throw new BadRequestException(
+        error.message || 'Failed to update activity column'
+      );
     }
   }
 

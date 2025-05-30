@@ -6,12 +6,14 @@ import { CreateAssignmentDto } from './dto/create-assignment.dto';
 import { UpdateAssignmentDto } from './dto/update-assignment.dto';
 import { UserRole } from '../users/schemas/user.schema';
 import { Activity } from '../activities/schemas/activity.schema';
+import { BoardGateway } from '../websockets/board.gateway';
 
 @Injectable()
 export class AssignmentsService {
   constructor(
     @InjectModel(Assignment.name) private assignmentModel: Model<AssignmentDocument>,
     @InjectModel(Activity.name) private activityModel: Model<Activity>,
+    private boardGateway: BoardGateway
   ) {}
 
   /**
@@ -68,12 +70,14 @@ export class AssignmentsService {
     }
     
     // Return all assignments for this activity, including existing ones
-    return this.assignmentModel.find({ 
+    const createdAssignments = await this.assignmentModel.find({ 
       activityId: new Types.ObjectId(activityId) 
     })
       .populate('studentId', 'name _id')
       .populate('activityId', 'title _id')
       .exec();
+
+    return createdAssignments;
   }
 
   /**
@@ -180,7 +184,20 @@ export class AssignmentsService {
       });
     }
     
-    return assignment.save();
+    const updatedAssignment = await assignment.save();
+    
+    // Notify teachers about the update via WebSocket
+    const boardId = typeof assignment.boardId === 'string'
+      ? assignment.boardId
+      : (assignment.boardId as any)._id?.toString() || assignment.boardId.toString();
+    
+    // Populate the assignment with student and activity details before sending
+    const populatedAssignment = await this.findOne(id);
+    
+    // Emit WebSocket event for real-time updates
+    this.boardGateway.notifyTeachersAboutAssignmentUpdate(boardId, populatedAssignment);
+    
+    return updatedAssignment;
   }
 
   /**
@@ -196,7 +213,17 @@ export class AssignmentsService {
       readByStudent: false
     });
     
-    return assignment.save();
+    const updatedAssignment = await assignment.save();
+    
+    // Notify teachers about the feedback update
+    const boardId = typeof assignment.boardId === 'string'
+      ? assignment.boardId
+      : (assignment.boardId as any)._id?.toString() || assignment.boardId.toString();
+    
+    // Emit WebSocket event for real-time updates
+    this.boardGateway.notifyTeachersAboutAssignmentUpdate(boardId, updatedAssignment);
+    
+    return updatedAssignment;
   }
 
   /**
@@ -221,7 +248,17 @@ export class AssignmentsService {
       readByStudent: true
     }));
     
-    return assignment.save();
+    const updatedAssignment = await assignment.save();
+    
+    // Notify teachers that the student has read the feedback
+    const boardId = typeof assignment.boardId === 'string'
+      ? assignment.boardId
+      : (assignment.boardId as any)._id?.toString() || assignment.boardId.toString();
+    
+    // Emit WebSocket event for real-time updates
+    this.boardGateway.notifyTeachersAboutAssignmentUpdate(boardId, updatedAssignment);
+    
+    return updatedAssignment;
   }
 
   /**
@@ -236,6 +273,13 @@ export class AssignmentsService {
     if (userRole !== UserRole.ADMIN && activity?.createdBy.toString() !== userId) {
       throw new ForbiddenException('You do not have permission to delete this assignment');
     }
+    
+    // Store board ID for notification before deletion
+    const boardId = typeof assignment.boardId === 'string'
+      ? assignment.boardId
+      : assignment.boardId.toString();
+    
+    const assignmentId = (assignment as any)._id.toString();
     
     await this.assignmentModel.findByIdAndDelete(id).exec();
     
@@ -254,5 +298,40 @@ export class AssignmentsService {
       
       await activity.save();
     }
+    
+    
+  }
+
+  /**
+   * Delete all assignments for a specific activity
+   */
+  async removeByActivityId(activityId: string): Promise<void> {
+    // Find all assignments to get their board IDs for notifications
+    const assignments = await this.assignmentModel.find({ 
+      activityId: new Types.ObjectId(activityId) 
+    }).exec();
+    
+    // Group assignments by board ID for efficient notifications
+    const boardAssignments = new Map<string, string[]>();
+    
+    assignments.forEach(assignment => {
+      const boardId = typeof assignment.boardId === 'string'
+        ? assignment.boardId
+        : assignment.boardId.toString();
+        
+      const assignmentId = (assignment as any)._id.toString();
+      
+      if (!boardAssignments.has(boardId)) {
+        boardAssignments.set(boardId, []);
+      }
+      boardAssignments.get(boardId)?.push(assignmentId);
+    });
+    
+    // Delete all assignments
+    await this.assignmentModel.deleteMany({ 
+      activityId: new Types.ObjectId(activityId) 
+    }).exec();
+    
+    
   }
 } 

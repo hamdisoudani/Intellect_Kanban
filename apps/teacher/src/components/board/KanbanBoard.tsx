@@ -19,6 +19,7 @@ import { ManageStudentsDialog } from './ManageStudentsDialog';
 import { TagsProvider } from '@/contexts/TagsContext';
 import { Tag as TagType } from '@/types/tags';
 import { DifficultyLevel, difficultyLevelLabels, difficultyLevelColors } from '@/types/activities';
+import { SocketProvider, useSocketContext } from '@/contexts/SocketContext';
 
 // New interface for MetaActivities display
 interface MetaColumn {
@@ -90,6 +91,52 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
 
   // Add a state for tracking activities being deleted
   const [deletingActivityId, setDeletingActivityId] = useState<string>('');
+
+  // Get socket context to listen for real-time updates
+  const { assignmentUpdates } = useSocketContext();
+  
+  // Listen for assignment updates from WebSocket
+  useEffect(() => {
+    if (assignmentUpdates.length > 0 && board) {
+      // Get the latest update
+      const latestUpdate = assignmentUpdates[0];
+      
+      if (latestUpdate && latestUpdate.assignment) {
+        const updatedAssignment = latestUpdate.assignment;
+        
+        // Update the assignments in state to reflect the change
+        setAssignmentsByActivity(prev => {
+          const activityId = typeof updatedAssignment.activityId === 'object' 
+            ? updatedAssignment.activityId._id 
+            : updatedAssignment.activityId;
+            
+          if (!activityId) return prev;
+          
+          const currentAssignments = [...(prev[activityId] || [])];
+          
+          // Find if the assignment already exists in our state
+          const existingIndex = currentAssignments.findIndex(
+            assignment => assignment._id === updatedAssignment._id
+          );
+          
+          if (existingIndex >= 0) {
+            // Update the existing assignment
+            currentAssignments[existingIndex] = updatedAssignment;
+          } else {
+            // Add the new assignment
+            currentAssignments.push(updatedAssignment);
+          }
+          
+          return {
+            ...prev,
+            [activityId]: currentAssignments
+          };
+        });
+        
+        console.log('[KanbanBoard] Updated assignment in state from WebSocket event');
+      }
+    }
+  }, [assignmentUpdates, board]);
 
   // Separate useEffect for fetching activities after board is loaded
   useEffect(() => {
@@ -943,166 +990,167 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
   };
 
   return (
-    <TagsProvider boardId={boardId}>
-      <div className="flex flex-col h-screen">
-        {isLoading ? (
-          <div className="space-y-3">
-            <Skeleton className="h-8 w-3/4" />
-            <Skeleton className="h-6 w-1/2" />
-          </div>
-        ) : (
-          <div className="flex flex-col">
-            {/* BoardHeader now serves as the main navbar */}
-            <BoardHeader 
-              board={board} 
-              onActivityButtonClick={() => setIsCreateActivityOpen(true)}
-              onViewChange={handleViewChange}
-              currentView={currentView}
-            />
-          </div>
-        )}
+    <SocketProvider boardId={boardId}>
+      <TagsProvider boardId={boardId}>
+        <div className="flex flex-col h-screen">
+          {isLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-8 w-3/4" />
+              <Skeleton className="h-6 w-1/2" />
+            </div>
+          ) : (
+            <div className="flex flex-col">
+              {/* BoardHeader now serves as the main navbar */}
+              <BoardHeader 
+                board={board} 
+                onActivityButtonClick={() => setIsCreateActivityOpen(true)}
+                onViewChange={handleViewChange}
+                currentView={currentView}
+              />
+            </div>
+          )}
 
-        {/* Board content - adjust for full screen */}
-        <div className="flex-1 overflow-hidden px-4 pb-8">
-          {currentView === 'class' ? (
-            <div className="w-full h-full">
-              {/* Main Board Area */}
-              <div className="flex-1 overflow-x-auto">
-                <div className="flex h-full">
-                  {/* Columns */}
-                  <div className="flex gap-4 p-4 h-full min-w-max">
-                    {/* Meta Activities Column */}
-                    <div 
-                      className="flex flex-col h-full border rounded-lg overflow-hidden bg-card min-w-[280px] max-w-[280px]"
-                    >
-                      {/* Column Header */}
-                      <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">Class Activities</span>
-                          <span className="text-xs bg-muted px-2 py-0.5 rounded-full">
-                            {activities['meta-activities']?.length || 0}
-                          </span>
-                        </div>
-                        <div className="flex gap-1">
-                          {/* Filter button - only show when at least one activity is selected */}
-                          {selectedMetaActivities.size > 0 && (
-                            <DropdownMenu open={isStudentFilterOpen} onOpenChange={(open) => {
-                              // When opening the dropdown, initialize temp filters with current selection
-                              if (open) {
-                                setTempStudentFilters(new Set(selectedStudentFilters));
-                                setTempTagFilters(new Set(selectedTagFilters));
-                                setTempDifficultyFilters(new Set(selectedDifficultyFilters));
-                              } else {
-                                // Reset search query when closing
-                                setStudentSearchQuery('');
-                                setTagSearchQuery('');
-                              }
-                              setIsStudentFilterOpen(open);
-                            }}>
-                              <DropdownMenuTrigger asChild>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="h-7 w-7 relative"
-                                >
-                                  <Filter className="h-4 w-4" />
-                                  {(selectedStudentFilters.size > 0 || selectedTagFilters.size > 0 || selectedDifficultyFilters.size > 0) && (
-                                    <motion.span 
-                                      initial={{ scale: 0 }}
-                                      animate={{ scale: 1 }}
-                                      className="absolute -top-1 -right-1 bg-primary text-[10px] text-primary-foreground rounded-full h-4 w-4 flex items-center justify-center"
-                                    >
-                                      {selectedStudentFilters.size + selectedTagFilters.size + selectedDifficultyFilters.size}
-                                    </motion.span>
-                                  )}
-                                  <span className="sr-only">Advanced filters</span>
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="start" side="bottom" className="w-[280px] p-0 border-none shadow-lg rounded-lg" sideOffset={5}>
-                                <motion.div 
-                                  initial={{ opacity: 0, y: -5 }}
-                                  animate={{ opacity: 1, y: 0 }}
-                                  className="bg-card border rounded-lg overflow-hidden"
-                                >
-                                  <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
-                                    <h4 className="font-medium text-sm">Advanced Filters</h4>
-                                    <Badge variant="outline" className="font-normal text-xs">
-                                      {selectedStudentFilters.size + selectedTagFilters.size + selectedDifficultyFilters.size} active
-                                    </Badge>
-                                  </div>
-                                  
-                                  <Tabs 
-                                    value={activeFilterTab} 
-                                    onValueChange={(value) => setActiveFilterTab(value as 'students' | 'tags' | 'difficulty')} 
-                                    className="w-full"
+          {/* Board content - adjust for full screen */}
+          <div className="flex-1 overflow-hidden px-4 pb-8">
+            {currentView === 'class' ? (
+              <div className="w-full h-full">
+                {/* Main Board Area */}
+                <div className="flex-1 overflow-x-auto">
+                  <div className="flex h-full">
+                    {/* Columns */}
+                    <div className="flex gap-4 p-4 h-full min-w-max">
+                      {/* Meta Activities Column */}
+                      <div 
+                        className="flex flex-col h-full border rounded-lg overflow-hidden bg-card min-w-[280px] max-w-[280px]"
+                      >
+                        {/* Column Header */}
+                        <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">Class Activities</span>
+                            <span className="text-xs bg-muted px-2 py-0.5 rounded-full">
+                              {activities['meta-activities']?.length || 0}
+                            </span>
+                          </div>
+                          <div className="flex gap-1">
+                            {/* Filter button - only show when at least one activity is selected */}
+                            {selectedMetaActivities.size > 0 && (
+                              <DropdownMenu open={isStudentFilterOpen} onOpenChange={(open) => {
+                                // When opening the dropdown, initialize temp filters with current selection
+                                if (open) {
+                                  setTempStudentFilters(new Set(selectedStudentFilters));
+                                  setTempTagFilters(new Set(selectedTagFilters));
+                                  setTempDifficultyFilters(new Set(selectedDifficultyFilters));
+                                } else {
+                                  // Reset search query when closing
+                                  setStudentSearchQuery('');
+                                  setTagSearchQuery('');
+                                }
+                                setIsStudentFilterOpen(open);
+                              }}>
+                                <DropdownMenuTrigger asChild>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-7 w-7 relative"
                                   >
-                                    <div className="border-b">
-                                      <TabsList className="w-full h-auto p-0 bg-transparent border-b rounded-none">
-                                        <TabsTrigger 
-                                          value="students" 
-                                          className="flex-1 py-2 rounded-none data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none text-xs"
-                                        >
-                                          <div className="flex items-center gap-1.5">
-                                            <UsersIcon className="h-3.5 w-3.5" />
-                                            <span>Students</span>
-                                            {selectedStudentFilters.size > 0 && (
-                                              <span className="bg-primary/15 text-[10px] rounded-full px-1.5 py-0.5">
-                                                {selectedStudentFilters.size}
-                                              </span>
-                                            )}
-                                          </div>
-                                        </TabsTrigger>
-                                        <TabsTrigger 
-                                          value="tags" 
-                                          className="flex-1 py-2 rounded-none data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none text-xs"
-                                        >
-                                          <div className="flex items-center gap-1.5">
-                                            <TagIcon className="h-3.5 w-3.5" />
-                                            <span>Tags</span>
-                                            {selectedTagFilters.size > 0 && (
-                                              <span className="bg-primary/15 text-[10px] rounded-full px-1.5 py-0.5">
-                                                {selectedTagFilters.size}
-                                              </span>
-                                            )}
-                                          </div>
-                                        </TabsTrigger>
-                                        <TabsTrigger 
-                                          value="difficulty" 
-                                          className="flex-1 py-2 rounded-none data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none text-xs"
-                                        >
-                                          <div className="flex items-center gap-1.5">
-                                            <AlertCircle className="h-3.5 w-3.5" />
-                                            <span>Difficulty</span>
-                                            {selectedDifficultyFilters.size > 0 && (
-                                              <span className="bg-primary/15 text-[10px] rounded-full px-1.5 py-0.5">
-                                                {selectedDifficultyFilters.size}
-                                              </span>
-                                            )}
-                                          </div>
-                                        </TabsTrigger>
-                                      </TabsList>
+                                    <Filter className="h-4 w-4" />
+                                    {(selectedStudentFilters.size > 0 || selectedTagFilters.size > 0 || selectedDifficultyFilters.size > 0) && (
+                                      <motion.span 
+                                        initial={{ scale: 0 }}
+                                        animate={{ scale: 1 }}
+                                        className="absolute -top-1 -right-1 bg-primary text-[10px] text-primary-foreground rounded-full h-4 w-4 flex items-center justify-center"
+                                      >
+                                        {selectedStudentFilters.size + selectedTagFilters.size + selectedDifficultyFilters.size}
+                                      </motion.span>
+                                    )}
+                                    <span className="sr-only">Advanced filters</span>
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" side="bottom" className="w-[280px] p-0 border-none shadow-lg rounded-lg" sideOffset={5}>
+                                  <motion.div 
+                                    initial={{ opacity: 0, y: -5 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="bg-card border rounded-lg overflow-hidden"
+                                  >
+                                    <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
+                                      <h4 className="font-medium text-sm">Advanced Filters</h4>
+                                      <Badge variant="outline" className="font-normal text-xs">
+                                        {selectedStudentFilters.size + selectedTagFilters.size + selectedDifficultyFilters.size} active
+                                      </Badge>
                                     </div>
                                     
-                                    {/* Students tab content */}
-                                    <TabsContent value="students" className="p-3 focus-visible:outline-none focus-visible:ring-0">
-                                  {/* Search input for students */}
-                                  <div className="mb-3 relative">
-                                    <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-                                    <Input
-                                      placeholder="Search students..."
-                                      value={studentSearchQuery}
-                                      onChange={(e) => setStudentSearchQuery(e.target.value)}
-                                      className="pl-7 h-7 text-xs"
-                                    />
-                                  </div>
-                                  
-                                      <div className="max-h-[200px] overflow-y-auto border rounded-md">
-                                    {/* Get all unique students from selected activities */}
-                                    {getUniqueStudentsFromSelectedActivities().length > 0 ? (
-                                          <div className="divide-y">
-                                        {/* Select All option */}
-                                            <div className="p-2 bg-muted/30">
-                                              <div className="flex items-center gap-2">
+                                    <Tabs 
+                                      value={activeFilterTab} 
+                                      onValueChange={(value) => setActiveFilterTab(value as 'students' | 'tags' | 'difficulty')} 
+                                      className="w-full"
+                                    >
+                                      <div className="border-b">
+                                        <TabsList className="w-full h-auto p-0 bg-transparent border-b rounded-none">
+                                          <TabsTrigger 
+                                            value="students" 
+                                            className="flex-1 py-2 rounded-none data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none text-xs"
+                                          >
+                                            <div className="flex items-center gap-1.5">
+                                              <UsersIcon className="h-3.5 w-3.5" />
+                                              <span>Students</span>
+                                              {selectedStudentFilters.size > 0 && (
+                                                <span className="bg-primary/15 text-[10px] rounded-full px-1.5 py-0.5">
+                                                  {selectedStudentFilters.size}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </TabsTrigger>
+                                          <TabsTrigger 
+                                            value="tags" 
+                                            className="flex-1 py-2 rounded-none data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none text-xs"
+                                          >
+                                            <div className="flex items-center gap-1.5">
+                                              <TagIcon className="h-3.5 w-3.5" />
+                                              <span>Tags</span>
+                                              {selectedTagFilters.size > 0 && (
+                                                <span className="bg-primary/15 text-[10px] rounded-full px-1.5 py-0.5">
+                                                  {selectedTagFilters.size}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </TabsTrigger>
+                                          <TabsTrigger 
+                                            value="difficulty" 
+                                            className="flex-1 py-2 rounded-none data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none text-xs"
+                                          >
+                                            <div className="flex items-center gap-1.5">
+                                              <AlertCircle className="h-3.5 w-3.5" />
+                                              <span>Difficulty</span>
+                                              {selectedDifficultyFilters.size > 0 && (
+                                                <span className="bg-primary/15 text-[10px] rounded-full px-1.5 py-0.5">
+                                                  {selectedDifficultyFilters.size}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </TabsTrigger>
+                                        </TabsList>
+                                      </div>
+                                      
+                                      {/* Students tab content */}
+                                      <TabsContent value="students" className="p-3 focus-visible:outline-none focus-visible:ring-0">
+                                    {/* Search input for students */}
+                                    <div className="mb-3 relative">
+                                      <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                                      <Input
+                                        placeholder="Search students..."
+                                        value={studentSearchQuery}
+                                        onChange={(e) => setStudentSearchQuery(e.target.value)}
+                                        className="pl-7 h-7 text-xs"
+                                      />
+                                    </div>
+                                    
+                                        <div className="max-h-[200px] overflow-y-auto border rounded-md">
+                                      {/* Get all unique students from selected activities */}
+                                      {getUniqueStudentsFromSelectedActivities().length > 0 ? (
+                                            <div className="divide-y">
+                                          {/* Select All option */}
+                                              <div className="p-2 bg-muted/30">
+                                                <div className="flex items-center gap-2">
                                           <Checkbox 
                                             id="student-filter-select-all" 
                                             checked={tempStudentFilters.size === getUniqueStudentsFromSelectedActivities().length}
@@ -1128,29 +1176,29 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
                                         </div>
                                         
                                             <div className="p-1">
-                                        {getUniqueStudentsFromSelectedActivities()
-                                          .filter(student => 
-                                            !studentSearchQuery || 
-                                            student.name.toLowerCase().includes(studentSearchQuery.toLowerCase())
-                                          )
-                                          .map(student => (
-                                                  <div key={student._id} className="flex items-center gap-2 p-1.5 hover:bg-muted/50 rounded">
-                                              <Checkbox 
-                                                id={`student-filter-${student._id}`} 
-                                                checked={tempStudentFilters.has(student._id)}
-                                                onCheckedChange={(checked) => {
-                                                  const newFilters = new Set(tempStudentFilters);
-                                                  if (checked) {
-                                                    newFilters.add(student._id);
-                                                  } else {
-                                                    newFilters.delete(student._id);
-                                                  }
-                                                  setTempStudentFilters(newFilters);
-                                                }}
-                                              />
-                                              <label 
-                                                htmlFor={`student-filter-${student._id}`} 
-                                                      className="text-xs cursor-pointer flex items-center gap-2"
+                                          {getUniqueStudentsFromSelectedActivities()
+                                            .filter(student => 
+                                              !studentSearchQuery || 
+                                              student.name.toLowerCase().includes(studentSearchQuery.toLowerCase())
+                                            )
+                                            .map(student => (
+                                                    <div key={student._id} className="flex items-center gap-2 p-1.5 hover:bg-muted/50 rounded">
+                                                <Checkbox 
+                                                  id={`student-filter-${student._id}`} 
+                                                  checked={tempStudentFilters.has(student._id)}
+                                                  onCheckedChange={(checked) => {
+                                                    const newFilters = new Set(tempStudentFilters);
+                                                    if (checked) {
+                                                      newFilters.add(student._id);
+                                                    } else {
+                                                      newFilters.delete(student._id);
+                                                    }
+                                                    setTempStudentFilters(newFilters);
+                                                  }}
+                                                />
+                                                <label 
+                                                  htmlFor={`student-filter-${student._id}`} 
+                                                        className="text-xs cursor-pointer flex items-center gap-2"
                                               >
                                                 <Avatar className="h-5 w-5">
                                                   <AvatarFallback className="text-[9px]">
@@ -1158,10 +1206,10 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
                                                   </AvatarFallback>
                                                 </Avatar>
                                                       <span className="truncate">{student.name}</span>
-                                              </label>
-                                            </div>
-                                          ))}
-                                            </div>
+                                                </label>
+                                              </div>
+                                            ))}
+                                          </div>
                                       </div>
                                     ) : (
                                           <div className="text-xs text-muted-foreground text-center py-4">
@@ -1646,138 +1694,139 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
                 </div>
               </div>
             </div>
-          ) : (
-            // Personal view - responsive grid that adjusts to screen width
-            <div className="w-full h-full">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-max pb-4">
-                {getColumnsForView().map((column) => (
-                  <div 
-                    key={column.id}
-                    className="flex flex-col h-full border rounded-lg overflow-hidden bg-card"
-                    onDragOver={(e) => handleDragOver(e, column.id)}
-                    onDrop={(e) => handleDrop(e, column.id)}
-                  >
-                    {/* Column Header */}
-                    <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{column.name}</span>
-                        <span className="text-xs bg-muted px-2 py-0.5 rounded-full">
-                          {getColumnBadgeCount(column.id)}
-                        </span>
+            ) : (
+              // Personal view - responsive grid that adjusts to screen width
+              <div className="w-full h-full">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-max pb-4">
+                  {getColumnsForView().map((column) => (
+                    <div 
+                      key={column.id}
+                      className="flex flex-col h-full border rounded-lg overflow-hidden bg-card"
+                      onDragOver={(e) => handleDragOver(e, column.id)}
+                      onDrop={(e) => handleDrop(e, column.id)}
+                    >
+                      {/* Column Header */}
+                      <div className="p-3 border-b bg-muted/30 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{column.name}</span>
+                          <span className="text-xs bg-muted px-2 py-0.5 rounded-full">
+                            {getColumnBadgeCount(column.id)}
+                          </span>
+                        </div>
+                        {/* Only show add button in personal view */}
+                        {(currentView as string) !== 'class' && (
+                          <button 
+                            className="text-xs text-muted-foreground hover:text-foreground p-1 rounded"
+                            onClick={() => {
+                              // Pre-select the current column and set the type to personal in the dialog
+                              setPreSelectedColumn(column.id);
+                              setIsCreateActivityOpen(true);
+                            }}
+                          >
+                            +
+                          </button>
+                        )}
                       </div>
-                      {/* Only show add button in personal view */}
-                      {(currentView as string) !== 'class' && (
-                        <button 
-                          className="text-xs text-muted-foreground hover:text-foreground p-1 rounded"
-                          onClick={() => {
-                            // Pre-select the current column and set the type to personal in the dialog
-                            setPreSelectedColumn(column.id);
-                            setIsCreateActivityOpen(true);
-                          }}
-                        >
-                          +
-                        </button>
-                      )}
-                    </div>
 
-                    {/* Activities */}
-                    <div className="flex-1 p-2 pb-4 overflow-y-auto max-h-[calc(100vh-180px)]">
-                      <div className="space-y-2">
-                        {isLoadingActivities ? (
-                          // Activity loading skeletons
-                          Array(3).fill(0).map((_, index) => (
-                            <div key={`skeleton-${index}`} className="rounded-md border p-2 animate-pulse">
-                              <div className="h-4 w-3/4 bg-muted-foreground/20 rounded mb-2"></div>
-                              <div className="flex justify-between items-center">
-                                <div className="h-3 w-1/4 bg-muted-foreground/15 rounded"></div>
-                                <div className="h-3 w-1/6 bg-muted-foreground/15 rounded"></div>
+                      {/* Activities */}
+                      <div className="flex-1 p-2 pb-4 overflow-y-auto max-h-[calc(100vh-180px)]">
+                        <div className="space-y-2">
+                          {isLoadingActivities ? (
+                            // Activity loading skeletons
+                            Array(3).fill(0).map((_, index) => (
+                              <div key={`skeleton-${index}`} className="rounded-md border p-2 animate-pulse">
+                                <div className="h-4 w-3/4 bg-muted-foreground/20 rounded mb-2"></div>
+                                <div className="flex justify-between items-center">
+                                  <div className="h-3 w-1/4 bg-muted-foreground/15 rounded"></div>
+                                  <div className="h-3 w-1/6 bg-muted-foreground/15 rounded"></div>
+                                </div>
                               </div>
-                            </div>
-                          ))
-                        ) : (
-                          // Actual activities filtered by view
-                          getFilteredActivities(column.id)?.map((activity) => {
-                            // Debug check
-                            if (!activity || !activity._id) {
-                              console.warn('Invalid activity detected in column', column.id, activity);
-                              return null; // Skip rendering this invalid activity
-                            }
-                            
-                            return (
-                              <KanbanActivityCard 
-                                key={activity._id}
-                                activity={activity}
-                                onClick={handleOpenActivityDetail}
-                                isPendingDeletion={deletingActivityId === activity._id}
-                                isMetaActivity={activity.type === 'meta'}
-                                onDragStart={(e, activity) => {
-                                  if (activity.type === 'meta') return;
-                                  
-                                  handleDragStart(activity._id, column.id);
-                                  // Set ghost image data
-                                  e.dataTransfer.setData('text/plain', activity._id);
-                                }}
-                              />
-                            );
-                          })
-                        )}
+                            ))
+                          ) : (
+                            // Actual activities filtered by view
+                            getFilteredActivities(column.id)?.map((activity) => {
+                              // Debug check
+                              if (!activity || !activity._id) {
+                                console.warn('Invalid activity detected in column', column.id, activity);
+                                return null; // Skip rendering this invalid activity
+                              }
+                              
+                              return (
+                                <KanbanActivityCard 
+                                  key={activity._id}
+                                  activity={activity}
+                                  onClick={handleOpenActivityDetail}
+                                  isPendingDeletion={deletingActivityId === activity._id}
+                                  isMetaActivity={activity.type === 'meta'}
+                                  onDragStart={(e, activity) => {
+                                    if (activity.type === 'meta') return;
+                                    
+                                    handleDragStart(activity._id, column.id);
+                                    // Set ghost image data
+                                    e.dataTransfer.setData('text/plain', activity._id);
+                                  }}
+                                />
+                              );
+                            })
+                          )}
 
-                        {/* Empty state */}
-                        {!isLoadingActivities && (!getFilteredActivities(column.id) || getFilteredActivities(column.id).length === 0) && (
-                          <div className="border border-dashed rounded-md p-6 flex flex-col items-center justify-center text-sm text-muted-foreground">
-                            <span>No personal activities</span>
-                            <span className="text-xs mt-1">Drop activities here</span>
-                          </div>
-                        )}
+                          {/* Empty state */}
+                          {!isLoadingActivities && (!getFilteredActivities(column.id) || getFilteredActivities(column.id).length === 0) && (
+                            <div className="border border-dashed rounded-md p-6 flex flex-col items-center justify-center text-sm text-muted-foreground">
+                              <span>No personal activities</span>
+                              <span className="text-xs mt-1">Drop activities here</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
+          </div>
+
+          {/* Activity Detail Dialog */}
+          {selectedActivity && (
+            <ActivityDetailDialog 
+              isOpen={isActivityDetailOpen} 
+              onOpenChange={setIsActivityDetailOpen} 
+              activity={selectedActivity}
+              columns={board?.columns || []}
+              students={students}
+              onActivityDeleted={handleActivityDeleted}
+              onDeletePending={setDeletingActivityId}
+            />
           )}
-        </div>
 
-        {/* Activity Detail Dialog */}
-        {selectedActivity && (
-          <ActivityDetailDialog 
-            isOpen={isActivityDetailOpen} 
-            onOpenChange={setIsActivityDetailOpen} 
-            activity={selectedActivity}
+          {/* Create Activity Dialog */}
+          <CreateActivityDialog
+            isOpen={isCreateActivityOpen}
+            onOpenChange={(open) => {
+              setIsCreateActivityOpen(open);
+              if (!open) {
+                // Reset pre-selected column when dialog closes
+                setPreSelectedColumn(null);
+              }
+            }}
+            boardId={boardId}
             columns={board?.columns || []}
-            students={students}
-            onActivityDeleted={handleActivityDeleted}
-            onDeletePending={setDeletingActivityId}
+            students={students as any}
+            onActivityCreated={handleActivityCreated}
+            showMetaOption={true} // Always show meta option
+            initialColumnId={preSelectedColumn}
           />
-        )}
 
-        {/* Create Activity Dialog */}
-        <CreateActivityDialog
-          isOpen={isCreateActivityOpen}
-          onOpenChange={(open) => {
-            setIsCreateActivityOpen(open);
-            if (!open) {
-              // Reset pre-selected column when dialog closes
-              setPreSelectedColumn(null);
-            }
-          }}
-          boardId={boardId}
-          columns={board?.columns || []}
-          students={students as any}
-          onActivityCreated={handleActivityCreated}
-          showMetaOption={true} // Always show meta option
-          initialColumnId={preSelectedColumn}
-        />
-
-        {/* ManageStudentsDialog */}
-        <ManageStudentsDialog
-          isOpen={isManageStudentsOpen}
-          onOpenChange={setIsManageStudentsOpen}
-          activity={selectedActivity}
-          classStudents={students}
-          onStudentsUpdated={handleStudentsUpdated}
-        />
-      </div>
-    </TagsProvider>
+          {/* ManageStudentsDialog */}
+          <ManageStudentsDialog
+            isOpen={isManageStudentsOpen}
+            onOpenChange={setIsManageStudentsOpen}
+            activity={selectedActivity}
+            classStudents={students}
+            onStudentsUpdated={handleStudentsUpdated}
+          />
+        </div>
+      </TagsProvider>
+    </SocketProvider>
   );
 }

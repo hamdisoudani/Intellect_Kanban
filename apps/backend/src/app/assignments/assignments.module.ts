@@ -4,6 +4,7 @@ import { Assignment, AssignmentSchema } from './schemas/assignment.schema';
 import { AssignmentsService } from './assignments.service';
 import { AssignmentsController } from './assignments.controller';
 import { Activity, ActivitySchema } from '../activities/schemas/activity.schema';
+import { WebsocketsModule } from '../websockets/websockets.module';
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { Activity, ActivitySchema } from '../activities/schemas/activity.schema'
       { name: Assignment.name, schema: AssignmentSchema },
       { name: Activity.name, schema: ActivitySchema }
     ]),
+    WebsocketsModule
   ],
   controllers: [AssignmentsController],
   providers: [AssignmentsService],

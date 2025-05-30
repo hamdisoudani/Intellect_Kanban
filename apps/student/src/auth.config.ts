@@ -7,6 +7,7 @@ interface User {
   email: string;
   name: string;
   role: string;
+  id: string;
 }
 
 interface AuthResponse {
@@ -68,7 +69,7 @@ export const authConfig = {
 
           // Return the user object and include the token in it
           return {
-            id: "",
+            id: user.id || "",
             email: user.email,
             name: user.name,
             role: user.role,
@@ -88,6 +89,7 @@ export const authConfig = {
         // The user object is typed correctly via the module augmentation
         token.role = user.role;
         token.accessToken = user.accessToken;
+        token.id = user.id;
       }
       return token;
     },
@@ -97,6 +99,7 @@ export const authConfig = {
         // The token values are now properly typed via the JWT interface extension
         session.user.role = token.role as string;
         session.user.accessToken = token.accessToken as string;
+        session.user.id = token.id as string;
       }
       return session;
     },

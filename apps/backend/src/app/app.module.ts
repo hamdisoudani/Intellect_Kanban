@@ -9,6 +9,7 @@ import { BoardsModule } from './boards/boards.module';
 import { ActivitiesModule } from './activities/activities.module';
 import { AssignmentsModule } from './assignments/assignments.module';
 import { TagsModule } from './tags/tags.module';
+import { WebsocketsModule } from './websockets/websockets.module';
 
 @Module({
   imports: [
@@ -19,7 +20,8 @@ import { TagsModule } from './tags/tags.module';
     BoardsModule,
     ActivitiesModule,
     AssignmentsModule,
-    TagsModule
+    TagsModule,
+    WebsocketsModule
   ],
   controllers: [AppController],
   providers: [AppService],

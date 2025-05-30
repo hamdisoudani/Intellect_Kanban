@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Toaster } from 'sonner';
 import { ThemeProvider } from '@intellect-kanban/ui';
 import './global.css';
+import { SessionProvider } from 'next-auth/react';
 
 export const metadata: Metadata = {
   title: 'Intellect Kanban - Teacher Dashboard',
@@ -16,24 +17,26 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
-          <Toaster 
-            position="top-right"
-            expand={false}
-            richColors
-            closeButton
-            toastOptions={{
-              duration: 5000,
-              className: "rounded-xl border border-border/50",
-            }}
-          />
-        </ThemeProvider>
+        <SessionProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            {children}
+            <Toaster 
+              position="top-right"
+              expand={false}
+              richColors
+              closeButton
+              toastOptions={{
+                duration: 5000,
+                className: "rounded-xl border border-border/50",
+              }}
+            />
+          </ThemeProvider>
+        </SessionProvider>
       </body>
     </html>
   );

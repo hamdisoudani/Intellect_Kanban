@@ -1,21 +1,21 @@
+"use client";
+
 import { KanbanBoard } from '@/components/board/KanbanBoard';
+import { SocketProvider } from '@/contexts/SocketContext';
 
 type BoardPageProps = {
   params: { id: string };
 };
 
-export const metadata = {
-  title: 'Intellect Kanban - Board',
-  description: 'Manage your Kanban board activities',
-};
 
-export default async function BoardPage({ params }: BoardPageProps) {
-  // Await params before accessing its properties
-  const { id } = await params;
+export default function BoardPage({ params }: BoardPageProps) {
+  const { id } = params;
 
   return (
     <div className="flex flex-col">
-      <KanbanBoard boardId={id} />
+      <SocketProvider boardId={id}>
+        <KanbanBoard boardId={id} />
+      </SocketProvider>
     </div>
   );
 } 

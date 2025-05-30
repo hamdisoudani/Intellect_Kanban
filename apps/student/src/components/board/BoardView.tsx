@@ -9,6 +9,7 @@ import { BoardHeader } from './BoardHeader';
 import { BoardColumns } from './BoardColumns';
 import { ErrorDisplay } from './ErrorDisplay';
 import { fetchBoard, fetchBoardAssignments } from '@/utils/api';
+import { SocketProvider } from '@/contexts/SocketContext';
 
 interface BoardViewProps {
   boardId: string;
@@ -167,17 +168,19 @@ export function BoardView({ boardId }: BoardViewProps) {
   }
 
   return (
-    <div className="w-full min-h-screen flex flex-col">
-      <BoardHeader board={board} />
-      <div className="flex-1 h-[calc(100vh-56px)]">
-        <BoardColumns 
-          board={board} 
-          assignments={assignments} 
-          isLoading={isLoadingAssignments}
-          onAssignmentUpdated={updateLocalAssignment}
-          onRefreshNeeded={refreshAssignments}
-        />
+    <SocketProvider boardId={boardId}>
+      <div className="w-full min-h-screen flex flex-col">
+        <BoardHeader board={board} />
+        <div className="flex-1 h-[calc(100vh-56px)]">
+          <BoardColumns 
+            board={board} 
+            assignments={assignments} 
+            isLoading={isLoadingAssignments}
+            onAssignmentUpdated={updateLocalAssignment}
+            onRefreshNeeded={refreshAssignments}
+          />
+        </div>
       </div>
-    </div>
+    </SocketProvider>
   );
 } 
