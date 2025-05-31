@@ -105,22 +105,22 @@ export function AssignmentCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
       transition={{ duration: 0.2 }}
-      whileHover={{ scale: 1.02 }}
+      whileHover={{ scale: 1.02, y: -2 }}
       whileTap={{ scale: 0.98 }}
       className="mb-3" // Added spacing between cards
     >
       <Card 
-        className="hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-primary/5 transition-all cursor-pointer"
+        className="hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-primary/5 transition-all cursor-pointer overflow-hidden"
         style={{ borderLeftWidth: '4px', borderLeftColor: getBorderColor() }}
         onClick={() => onClick?.(assignment)}
       >
-        <CardContent className="p-3">
+        <CardContent className="p-4">
           {/* Activity Title with color */}
           {activityTitle && (
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-3 pb-2 border-b border-border/30">
               <h4 className="text-xs font-medium line-clamp-1 flex-1 flex items-center gap-1.5">
                 <span 
-                  className="inline-block h-2 w-2 rounded-full flex-shrink-0" 
+                  className="inline-block h-2.5 w-2.5 rounded-full flex-shrink-0" 
                   style={{ backgroundColor: getBorderColor() }}
                 ></span>
                 {activityTitle}
@@ -143,7 +143,7 @@ export function AssignmentCard({
           <div className="flex justify-between items-center gap-2">
             <div className="flex items-center gap-2">
               {/* Student Avatar */}
-              <Avatar className="h-7 w-7 border-2 border-background">
+              <Avatar className="h-8 w-8 border-2 border-background">
                 <AvatarFallback className="text-[10px] bg-gradient-to-br from-primary/20 to-primary/40 text-primary-foreground">
                   {studentName.substring(0, 2).toUpperCase()}
                 </AvatarFallback>
@@ -157,8 +157,8 @@ export function AssignmentCard({
             
             {/* Feedback indicator */}
             {feedbackCount > 0 && (
-              <Badge variant="secondary" className="h-5 px-1.5 flex items-center gap-1 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800">
-                <MessageSquare className="h-3 w-3" />
+              <Badge variant="secondary" className="h-6 px-2 flex items-center gap-1 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800">
+                <MessageSquare className="h-3.5 w-3.5" />
                 <span className="text-xs font-medium">{feedbackCount}</span>
               </Badge>
             )}
@@ -166,7 +166,7 @@ export function AssignmentCard({
           
           {/* Notes if any */}
           {assignment.notes && (
-            <div className="mt-2 mb-1 p-1.5 bg-muted/40 rounded-sm border border-border/50">
+            <div className="mt-3 mb-2 p-2 bg-muted/40 rounded-md border border-border/50">
               <p className="text-xs line-clamp-2 text-muted-foreground">
                 {assignment.notes}
               </p>
@@ -175,9 +175,9 @@ export function AssignmentCard({
           
           {/* Footer with last updated */}
           {updatedAt && (
-            <div className="flex items-center justify-between mt-2 text-[10px] text-muted-foreground">
-              <div className="flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
+            <div className="flex items-center justify-between mt-3 pt-2 text-[11px] text-muted-foreground border-t border-border/30">
+              <div className="flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5" />
                 <span>{updatedAt}</span>
               </div>
               <span className="italic">{timeAgo}</span>

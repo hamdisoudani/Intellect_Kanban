@@ -28,4 +28,6 @@ export interface Activity {
   createdAt: string;
   updatedAt: string;
   columnHistory?: ColumnTransition[];
+  tags?: any[]; // Should ideally be TagType[] from @/types/tags
+  difficultyLevel?: string; // Should ideally be DifficultyLevel from @/types/activities
 } 

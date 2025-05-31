@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { 
   Card
 } from '@intellect-kanban/ui';
-import { Calendar, UsersIcon, CheckSquare, Square, Users } from 'lucide-react';
+import { Calendar, UsersIcon, CheckSquare, Square, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 import stc from 'string-to-color';
 import { Tag } from '../ui/Tag';
@@ -21,6 +21,7 @@ interface MetaActivityCardProps {
   onSelect: (activityId: string) => void;
   onManageStudents: (activity: Activity) => void;
   isPendingDeletion?: boolean;
+  isCollapsed?: boolean;
 }
 
 export function MetaActivityCard({
@@ -29,7 +30,8 @@ export function MetaActivityCard({
   isLoading,
   onSelect,
   onManageStudents,
-  isPendingDeletion = false
+  isPendingDeletion = false,
+  isCollapsed = false
 }: MetaActivityCardProps) {
   // State for resolved tags
   const [resolvedTags, setResolvedTags] = useState<TagType[]>([]);
@@ -129,6 +131,17 @@ export function MetaActivityCard({
                 style={{ backgroundColor: getActivityColor() }}
               ></span>
               {activity.title}
+              
+              {/* Collapsed indicator */}
+              {isSelected && (
+                <span className="ml-1 text-muted-foreground">
+                  {isCollapsed ? (
+                    <ChevronDown className="h-3 w-3 inline-block" />
+                  ) : (
+                    <ChevronUp className="h-3 w-3 inline-block" />
+                  )}
+                </span>
+              )}
             </h4>
           </div>
           <div className="flex items-center">
