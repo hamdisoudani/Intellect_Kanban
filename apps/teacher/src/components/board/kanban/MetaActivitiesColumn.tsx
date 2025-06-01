@@ -20,6 +20,7 @@ interface MetaActivitiesColumnProps {
   toggleMetaActivitySelection: (activityId: string) => Promise<void>;
   selectAllMetaActivities: () => Promise<void>;
   handleManageStudents: (activity: any) => void;
+  onViewDetails: (activity: any) => void;
   onCollapseColumn?: () => void; // New prop for collapsing the column
   
   // Filter props
@@ -37,12 +38,18 @@ interface MetaActivitiesColumnProps {
   setSelectedDifficultyFilters: (filters: Set<DifficultyLevel>) => void;
   tempDifficultyFilters: Set<DifficultyLevel>;
   setTempDifficultyFilters: (filters: Set<DifficultyLevel>) => void;
-  activeFilterTab: 'students' | 'tags' | 'difficulty';
-  setActiveFilterTab: (tab: 'students' | 'tags' | 'difficulty') => void;
+  selectedActivityFilters?: Set<string>;
+  setSelectedActivityFilters?: (filters: Set<string>) => void;
+  tempActivityFilters?: Set<string>;
+  setTempActivityFilters?: (filters: Set<string>) => void;
+  activeFilterTab: 'students' | 'tags' | 'difficulty' | 'activities';
+  setActiveFilterTab: (tab: 'students' | 'tags' | 'difficulty' | 'activities') => void;
   studentSearchQuery: string;
   setStudentSearchQuery: (query: string) => void;
   tagSearchQuery: string;
   setTagSearchQuery: (query: string) => void;
+  activitySearchQuery?: string;
+  setActivitySearchQuery?: (query: string) => void;
   
   // Data for filters
   uniqueStudents: { _id: string; name: string }[];
@@ -66,6 +73,7 @@ export function MetaActivitiesColumn({
   toggleMetaActivitySelection,
   selectAllMetaActivities,
   handleManageStudents,
+  onViewDetails,
   onCollapseColumn,
   
   // Filter props
@@ -83,12 +91,18 @@ export function MetaActivitiesColumn({
   setSelectedDifficultyFilters,
   tempDifficultyFilters,
   setTempDifficultyFilters,
+  selectedActivityFilters = new Set<string>(),
+  setSelectedActivityFilters = () => {},
+  tempActivityFilters = new Set<string>(),
+  setTempActivityFilters = () => {},
   activeFilterTab,
   setActiveFilterTab,
   studentSearchQuery,
   setStudentSearchQuery,
   tagSearchQuery,
   setTagSearchQuery,
+  activitySearchQuery = '',
+  setActivitySearchQuery = () => {},
   
   // Data for filters
   uniqueStudents,
@@ -123,6 +137,7 @@ export function MetaActivitiesColumn({
     setSelectedStudentFilters(new Set(tempStudentFilters));
     setSelectedTagFilters(new Set(tempTagFilters));
     setSelectedDifficultyFilters(new Set(tempDifficultyFilters));
+    setSelectedActivityFilters(new Set(tempActivityFilters));
     setIsStudentFilterOpen(false);
   };
   
@@ -131,6 +146,7 @@ export function MetaActivitiesColumn({
     setTempStudentFilters(new Set());
     setTempTagFilters(new Set());
     setTempDifficultyFilters(new Set());
+    setTempActivityFilters(new Set());
   };
   
   return (
@@ -171,17 +187,24 @@ export function MetaActivitiesColumn({
               selectedDifficultyFilters={selectedDifficultyFilters}
               tempDifficultyFilters={tempDifficultyFilters}
               setTempDifficultyFilters={setTempDifficultyFilters}
+              selectedActivityFilters={selectedActivityFilters}
+              tempActivityFilters={tempActivityFilters}
+              setTempActivityFilters={setTempActivityFilters}
               activeFilterTab={activeFilterTab}
               setActiveFilterTab={setActiveFilterTab}
               studentSearchQuery={studentSearchQuery}
               setStudentSearchQuery={setStudentSearchQuery}
               tagSearchQuery={tagSearchQuery}
               setTagSearchQuery={setTagSearchQuery}
+              activitySearchQuery={activitySearchQuery}
+              setActivitySearchQuery={setActivitySearchQuery}
               applyFilters={applyFilters}
               clearFilters={clearFilters}
               uniqueStudents={uniqueStudents}
               uniqueTags={uniqueTags}
               uniqueDifficultyLevels={uniqueDifficultyLevels}
+              selectedMetaActivities={selectedMetaActivities}
+              metaActivities={activities}
             />
           )}
           
@@ -254,9 +277,13 @@ export function MetaActivitiesColumn({
         </div>
       </motion.div>
       
-      {/* Activities List */}
+      {/* Activities List with improved bottom padding */}
       <motion.div 
-        className="flex-1 p-2 pb-4 overflow-y-auto max-h-[calc(100vh-180px)]"
+        className="flex-1 p-2 overflow-y-auto mb-4"
+        style={{ 
+          maxHeight: 'calc(100vh - 180px)',
+          paddingBottom: '16px' // Ensure adequate padding at the bottom
+        }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.3 }}
@@ -302,6 +329,7 @@ export function MetaActivitiesColumn({
                   isSelected={selectedMetaActivities.has(activity._id)}
                   onSelect={toggleMetaActivitySelection}
                   onManageStudents={handleManageStudents}
+                  onViewDetails={onViewDetails}
                   isPendingDeletion={deletingActivityId === activity._id}
                   isLoading={isLoadingAssignments[activity._id]}
                   isCollapsed={collapsedActivities?.has(activity._id)}

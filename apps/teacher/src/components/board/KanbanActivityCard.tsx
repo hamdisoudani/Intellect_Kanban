@@ -184,7 +184,7 @@ export function KanbanActivityCard({
       )}
 
       <Card 
-        className={`cursor-pointer hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-primary/5 transition-all ${
+        className={`cursor-pointer hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-primary/5 transition-all w-full ${
           isPendingDeletion ? 'opacity-70 pointer-events-none' : ''
         }`}
         style={{ borderLeftWidth: '4px', borderLeftColor: getBorderColor() }}

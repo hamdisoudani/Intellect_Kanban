@@ -15,6 +15,7 @@ import { ClassViewBoard } from './kanban/ClassViewBoard';
 import { Skeleton } from '@intellect-kanban/ui';
 import { DifficultyLevel, difficultyLevelLabels, difficultyLevelColors } from '@/types/activities';
 import { Tag as TagType } from '@/types/tags';
+import { MetaActivityDetailDialog } from './MetaActivityDetailDialog';
 
 // Make sure we're using a consistent type for Activity with tags and difficultyLevel
 type ExtendedActivity = ActivityType & {
@@ -60,11 +61,14 @@ export function KanbanBoardRefactored({ boardId }: KanbanBoardProps) {
   const [selectedDifficultyFilters, setSelectedDifficultyFilters] = useState<Set<DifficultyLevel>>(new Set());
   const [tempDifficultyFilters, setTempDifficultyFilters] = useState<Set<DifficultyLevel>>(new Set());
   
-  const [activeFilterTab, setActiveFilterTab] = useState<'students' | 'tags' | 'difficulty'>('students');
+  const [activeFilterTab, setActiveFilterTab] = useState<'students' | 'tags' | 'difficulty' | 'activities'>('students');
   
   const [isManageStudentsOpen, setIsManageStudentsOpen] = useState(false);
   const [isStudentFilterOpen, setIsStudentFilterOpen] = useState(false);
   const [deletingActivityId, setDeletingActivityId] = useState<string>('');
+
+  const [isMetaActivityDetailOpen, setIsMetaActivityDetailOpen] = useState(false);
+  const [detailMetaActivity, setDetailMetaActivity] = useState<ExtendedActivity | null>(null);
 
   const { assignmentUpdates } = useSocketContext();
 
@@ -427,6 +431,16 @@ export function KanbanBoardRefactored({ boardId }: KanbanBoardProps) {
     setIsCreateActivityOpen(true);
   };
 
+  const handleViewMetaActivityDetails = (activity: ExtendedActivity) => {
+    setDetailMetaActivity(activity);
+    setIsMetaActivityDetailOpen(true);
+  };
+
+  const handleMetaActivityDetailManageStudents = (activity: ExtendedActivity) => {
+    setIsMetaActivityDetailOpen(false);
+    setTimeout(() => handleManageStudents(activity as any), 200);
+  };
+
   if (isLoading) {
     const columnCount = board?.columns?.length || 4;
     return (
@@ -503,7 +517,8 @@ export function KanbanBoardRefactored({ boardId }: KanbanBoardProps) {
                 toggleMetaActivitySelection={toggleMetaActivitySelection}
                 selectAllMetaActivities={selectAllMetaActivities}
                 handleManageStudents={handleManageStudents}
-                searchQuery={metaActivitySearchQuery} // Use specific search query for meta activities
+                handleViewMetaActivityDetails={handleViewMetaActivityDetails}
+                searchQuery={metaActivitySearchQuery}
                 setSearchQuery={setMetaActivitySearchQuery}
                 getColumnAssignments={getColumnAssignments}
                 getAllColumnAssignments={getAllColumnAssignments}
@@ -512,15 +527,15 @@ export function KanbanBoardRefactored({ boardId }: KanbanBoardProps) {
                 isStudentFilterOpen={isStudentFilterOpen}
                 setIsStudentFilterOpen={setIsStudentFilterOpen}
                 selectedStudentFilters={selectedStudentFilters}
-                setSelectedStudentFilters={setSelectedStudentFilters} // Pass setter
+                setSelectedStudentFilters={setSelectedStudentFilters}
                 tempStudentFilters={tempStudentFilters}
                 setTempStudentFilters={setTempStudentFilters}
                 selectedTagFilters={selectedTagFilters}
-                setSelectedTagFilters={setSelectedTagFilters} // Pass setter
+                setSelectedTagFilters={setSelectedTagFilters}
                 tempTagFilters={tempTagFilters}
                 setTempTagFilters={setTempTagFilters}
                 selectedDifficultyFilters={selectedDifficultyFilters}
-                setSelectedDifficultyFilters={setSelectedDifficultyFilters} // Pass setter
+                setSelectedDifficultyFilters={setSelectedDifficultyFilters}
                 tempDifficultyFilters={tempDifficultyFilters}
                 setTempDifficultyFilters={setTempDifficultyFilters}
                 activeFilterTab={activeFilterTab}
@@ -568,6 +583,17 @@ export function KanbanBoardRefactored({ boardId }: KanbanBoardProps) {
             activity={selectedActivity}
             classStudents={students}
             onStudentsUpdated={handleStudentsUpdated}
+          />
+
+          {/* Meta Activity Detail Dialog */}
+          <MetaActivityDetailDialog
+            isOpen={isMetaActivityDetailOpen}
+            onOpenChange={setIsMetaActivityDetailOpen}
+            activity={detailMetaActivity}
+            onManageStudents={(activity) => handleMetaActivityDetailManageStudents(activity as any)}
+            onActivityDeleted={handleActivityDeleted}
+            onDeletePending={setDeletingActivityId}
+            classStudents={students}
           />
         </div>
       </TagsProvider>

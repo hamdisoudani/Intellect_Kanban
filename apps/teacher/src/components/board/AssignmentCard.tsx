@@ -110,7 +110,7 @@ export function AssignmentCard({
       className="mb-3" // Added spacing between cards
     >
       <Card 
-        className="hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-primary/5 transition-all cursor-pointer overflow-hidden"
+        className="hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-primary/5 transition-all cursor-pointer overflow-hidden w-full"
         style={{ borderLeftWidth: '4px', borderLeftColor: getBorderColor() }}
         onClick={() => onClick?.(assignment)}
       >

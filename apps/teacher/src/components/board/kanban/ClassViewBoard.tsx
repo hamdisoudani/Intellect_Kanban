@@ -28,6 +28,7 @@ interface ClassViewBoardProps {
   toggleMetaActivitySelection: (activityId: string) => Promise<void>;
   selectAllMetaActivities: () => Promise<void>;
   handleManageStudents: (activity: any) => void;
+  handleViewMetaActivityDetails: (activity: any) => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   
@@ -52,8 +53,8 @@ interface ClassViewBoardProps {
   setSelectedDifficultyFilters: (filters: Set<DifficultyLevel>) => void;
   tempDifficultyFilters: Set<DifficultyLevel>;
   setTempDifficultyFilters: (filters: Set<DifficultyLevel>) => void;
-  activeFilterTab: 'students' | 'tags' | 'difficulty';
-  setActiveFilterTab: (tab: 'students' | 'tags' | 'difficulty') => void;
+  activeFilterTab: 'students' | 'tags' | 'difficulty' | 'activities';
+  setActiveFilterTab: (tab: 'students' | 'tags' | 'difficulty' | 'activities') => void;
   studentSearchQuery: string;
   setStudentSearchQuery: (query: string) => void;
   tagSearchQuery: string;
@@ -84,6 +85,7 @@ export function ClassViewBoard({
   toggleMetaActivitySelection,
   selectAllMetaActivities,
   handleManageStudents,
+  handleViewMetaActivityDetails,
   searchQuery,
   setSearchQuery,
   
@@ -126,6 +128,14 @@ export function ClassViewBoard({
   // State to track if meta-activities column is collapsed
   const [isMetaColumnCollapsed, setIsMetaColumnCollapsed] = useState(false);
   
+  // Add state for activity filters
+  const [selectedActivityFilters, setSelectedActivityFilters] = useState<Set<string>>(new Set());
+  const [tempActivityFilters, setTempActivityFilters] = useState<Set<string>>(new Set());
+  const [activitySearchQuery, setActivitySearchQuery] = useState<string>('');
+  
+  // Set the constant for current view since this is the class view board
+  const currentView = 'class';
+  
   // Function to toggle collapse for a specific activity
   const toggleActivityCollapse = (activityId: string) => {
     setCollapsedActivities(prev => {
@@ -159,12 +169,80 @@ export function ClassViewBoard({
     setSelectedStudentFilters(new Set());
     setSelectedTagFilters(new Set());
     setSelectedDifficultyFilters(new Set());
+    setSelectedActivityFilters(new Set()); 
+  };
+  
+  // Helper function to get activity title by ID
+  const getActivityTitle = (activityId: string) => {
+    const activity = metaActivities.find(activity => activity._id === activityId);
+    return activity ? activity.title : 'Unknown Activity';
+  };
+  
+  // Function to filter assignments by selected activities
+  const getFilteredColumnAssignments = (columnId: string) => {
+    if (currentView !== 'class' || columnId === 'meta-activities') return [];
+    
+    let filteredAssignments = getAllColumnAssignments(columnId);
+
+    // First apply activity filters if any are selected
+    if (selectedActivityFilters.size > 0) {
+      // Special case: if we have the "__hide_all__" marker, show no assignments
+      if (selectedActivityFilters.has('__hide_all__')) {
+        return [];
+      }
+      
+      filteredAssignments = filteredAssignments.filter(assignment => {
+        const activityId = typeof assignment.activityId === 'object' 
+          ? assignment.activityId._id 
+          : assignment.activityId;
+        return selectedActivityFilters.has(activityId as string);
+      });
+    }
+    
+    // Then apply student filters
+    if (selectedStudentFilters.size > 0) {
+      filteredAssignments = filteredAssignments.filter(assignment => {
+        const studentId = typeof assignment.studentId === 'object' 
+          ? assignment.studentId._id 
+          : assignment.studentId;
+        return selectedStudentFilters.has(studentId as string);
+      });
+    }
+    
+    // Apply tag filters
+    if (selectedTagFilters.size > 0) {
+      filteredAssignments = filteredAssignments.filter(assignment => {
+        const activityId = typeof assignment.activityId === 'object' 
+          ? assignment.activityId._id 
+          : assignment.activityId;
+        const activity = metaActivities?.find(act => act._id === activityId);
+        return activity && Array.isArray(activity.tags) && 
+               activity.tags.some((tag: any) => 
+                 selectedTagFilters.has(typeof tag === 'object' ? tag._id : tag)
+               );
+      });
+    }
+    
+    // Apply difficulty filters
+    if (selectedDifficultyFilters.size > 0) {
+      filteredAssignments = filteredAssignments.filter(assignment => {
+        const activityId = typeof assignment.activityId === 'object' 
+          ? assignment.activityId._id 
+          : assignment.activityId;
+        const activity = metaActivities?.find(act => act._id === activityId);
+        return activity && activity.difficultyLevel 
+          ? selectedDifficultyFilters.has(activity.difficultyLevel) 
+          : false;
+      });
+    }
+    
+    return filteredAssignments;
   };
   
   return (
-    <div className="w-full h-full">
-      <div className="flex-1 overflow-x-auto">
-        <div className="flex h-full p-4 gap-4">
+    <div className="w-full h-full pb-6 overflow-hidden">
+      <div className="flex-1">
+        <div className="flex h-full p-4 pb-8 gap-4 max-w-full">
           {/* Meta Activities Column Toggle Button - only shown when column is collapsed */}
           {isMetaColumnCollapsed && (
             <motion.div
@@ -211,6 +289,7 @@ export function ClassViewBoard({
                 toggleMetaActivitySelection={toggleMetaActivitySelection}
                 selectAllMetaActivities={selectAllMetaActivities}
                 handleManageStudents={handleManageStudents}
+                onViewDetails={handleViewMetaActivityDetails}
                 onCollapseColumn={() => setIsMetaColumnCollapsed(true)}
                 
                 // Filter props
@@ -228,12 +307,18 @@ export function ClassViewBoard({
                 setSelectedDifficultyFilters={setSelectedDifficultyFilters}
                 tempDifficultyFilters={tempDifficultyFilters}
                 setTempDifficultyFilters={setTempDifficultyFilters}
+                selectedActivityFilters={selectedActivityFilters}
+                setSelectedActivityFilters={setSelectedActivityFilters}
+                tempActivityFilters={tempActivityFilters}
+                setTempActivityFilters={setTempActivityFilters}
                 activeFilterTab={activeFilterTab}
                 setActiveFilterTab={setActiveFilterTab}
                 studentSearchQuery={studentSearchQuery}
                 setStudentSearchQuery={setStudentSearchQuery}
                 tagSearchQuery={tagSearchQuery}
                 setTagSearchQuery={setTagSearchQuery}
+                activitySearchQuery={activitySearchQuery}
+                setActivitySearchQuery={setActivitySearchQuery}
                 
                 // Data for filters
                 uniqueStudents={uniqueStudents}
@@ -250,7 +335,7 @@ export function ClassViewBoard({
           
           {/* Regular Columns */}
           <motion.div 
-            className={`flex gap-4 h-full overflow-x-auto pb-2 ${isMetaColumnCollapsed ? 'w-full' : 'flex-1'}`}
+            className={`flex gap-4 h-full overflow-hidden pb-6 ${isMetaColumnCollapsed ? 'w-full' : 'flex-1'}`}
             layout
             transition={{ type: "spring", stiffness: 200, damping: 30 }}
           >
@@ -261,8 +346,8 @@ export function ClassViewBoard({
                 animate={{ 
                   opacity: 1, 
                   y: 0,
-                  flex: isMetaColumnCollapsed ? 1 : "none",
-                  width: isMetaColumnCollapsed ? `${100 / columns.length}%` : "auto"
+                  flex: 1,
+                  width: `${100 / columns.length}%`
                 }}
                 transition={{ 
                   delay: index * 0.05, 
@@ -270,13 +355,19 @@ export function ClassViewBoard({
                   stiffness: 250,
                   damping: 25
                 }}
-                className={isMetaColumnCollapsed ? "min-w-0" : ""}
+                className="flex-shrink-0 flex-grow"
+                style={{ 
+                  width: `calc(${100 / columns.length}% - ${(columns.length - 1) * 16 / columns.length}px)`,
+                  flexGrow: 1,
+                  flexShrink: 1,
+                  flexBasis: 0,
+                }}
               >
                 <KanbanRegularColumn
                   column={column}
                   currentView="class"
                   activities={[]} // Not used in class view
-                  assignments={getColumnAssignments(column.id)}
+                  assignments={getFilteredColumnAssignments(column.id)}
                   allAssignments={getAllColumnAssignments(column.id)}
                   isLoadingActivities={isLoadingActivities}
                   areAssignmentsLoading={mightHaveAssignmentsLoading(column.id)}
@@ -294,6 +385,7 @@ export function ClassViewBoard({
                   selectedStudentFilters={selectedStudentFilters}
                   selectedTagFilters={selectedTagFilters}
                   selectedDifficultyFilters={selectedDifficultyFilters}
+                  selectedActivityFilters={selectedActivityFilters}
                   clearAllFilters={clearAllFilters}
                   
                   // Shared collapse state
