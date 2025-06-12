@@ -403,6 +403,8 @@ export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
   
   // Meta activity selection actions
   toggleMetaActivitySelection: async (activityId: string) => {
+    // This method no longer needs to fetch assignments since that's handled elsewhere
+    // It just updates the selection state
     set(state => {
       const newSelection = new Set(state.selectedMetaActivities);
       if (newSelection.has(activityId)) {

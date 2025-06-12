@@ -17,6 +17,7 @@ import { User } from '@/utils/types/classes';
 import { motion } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
 import stc from 'string-to-color';
+import Color from 'color';
 
 interface AssignmentCardProps {
   assignment: Assignment;
@@ -99,6 +100,42 @@ export function AssignmentCard({
     return '#7f1de4'; // Default string-to-color value
   };
   
+  // Create avatar styles with optimal text contrast
+  const getAvatarStyles = () => {
+    try {
+      // Get the base color from activity
+      const baseColor = getBorderColor();
+      
+      // Create a Color object for manipulation
+      const color = Color(baseColor);
+      
+      // Create a darker version for the gradient
+      const darkColor = color.darken(0.2).fade(0.1).toString();
+      const lightColor = color.lighten(0.1).fade(0.1).toString();
+      
+      // Determine if we need light or dark text for contrast
+      const textColor = color.isDark() ? 'text-white' : 'text-gray-900';
+      
+      return {
+        backgroundStyle: `bg-gradient-to-br from-${baseColor.replace('#', '')} to-${darkColor.replace('#', '')}`,
+        style: {
+          background: `linear-gradient(to bottom right, ${lightColor}, ${darkColor})`,
+          boxShadow: `inset 0 0 0 1px rgba(0,0,0,0.1)`
+        },
+        textColorClass: textColor
+      };
+    } catch (e) {
+      // Fallback styling if color manipulation fails
+      return {
+        backgroundStyle: "bg-gradient-to-br from-gray-500/80 to-gray-600/90",
+        style: {},
+        textColorClass: "text-white"
+      };
+    }
+  };
+  
+  const avatarStyles = getAvatarStyles();
+  
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -144,7 +181,10 @@ export function AssignmentCard({
             <div className="flex items-center gap-2">
               {/* Student Avatar */}
               <Avatar className="h-8 w-8 border-2 border-background">
-                <AvatarFallback className="text-[10px] bg-gradient-to-br from-primary/20 to-primary/40 text-primary-foreground">
+                <AvatarFallback 
+                  className={`text-[10px] font-semibold ${avatarStyles.textColorClass}`}
+                  style={avatarStyles.style}
+                >
                   {studentName.substring(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>

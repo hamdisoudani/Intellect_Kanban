@@ -64,6 +64,14 @@ export const useSocketStore = create<SocketState>((set, get) => ({
         
         // Extract relevant information for the notification
         const assignment = data.assignment;
+        
+        // Ensure we have a valid assignment object
+        if (!assignment || typeof assignment !== 'object') {
+          console.error('[WebSocket] Invalid assignment data received:', data);
+          return;
+        }
+        
+        // Extract student and activity info safely
         const studentName = assignment.studentId?.name || 'A student';
         const activityTitle = assignment.activityId?.title || 'an activity';
         const newColumn = assignment.columnId;
@@ -86,11 +94,23 @@ export const useSocketStore = create<SocketState>((set, get) => ({
         
         // Add to recent updates
         set(state => ({ 
-          assignmentUpdates: [data.assignment, ...state.assignmentUpdates].slice(0, 10) // Keep last 10 updates
+          assignmentUpdates: [assignment, ...state.assignmentUpdates].slice(0, 10) // Keep last 10 updates
         }));
         
+        // Log the assignment structure before passing to the assignments store
+        console.log('[WebSocket] Assignment structure:', {
+          id: assignment._id,
+          activityId: typeof assignment.activityId === 'object' ? assignment.activityId._id : assignment.activityId,
+          studentId: typeof assignment.studentId === 'object' ? assignment.studentId._id : assignment.studentId,
+          columnId: assignment.columnId
+        });
+        
         // Update the assignment in the assignments store
-        useAssignmentsStore.getState().handleAssignmentUpdate(data.assignment);
+        try {
+          useAssignmentsStore.getState().handleAssignmentUpdate(assignment);
+        } catch (error) {
+          console.error('[WebSocket] Error updating assignment in store:', error);
+        }
       });
       
       socketInstance.on('connect_error', (err) => {

@@ -38,6 +38,8 @@ interface AdvancedFilterPanelProps {
   uniqueDifficultyLevels: { level: DifficultyLevel, label: string, color: string }[];
   selectedMetaActivities?: Set<string>;
   metaActivities?: any[];
+  selectAllMetaActivities: () => Promise<void>;
+  toggleMetaActivitySelection: (activityId: string) => Promise<void>;
 }
 
 export function AdvancedFilterPanel({
@@ -69,7 +71,9 @@ export function AdvancedFilterPanel({
   uniqueTags,
   uniqueDifficultyLevels,
   selectedMetaActivities = new Set<string>(),
-  metaActivities = []
+  metaActivities = [],
+  selectAllMetaActivities,
+  toggleMetaActivitySelection
 }: AdvancedFilterPanelProps) {
   // Track if we have any activities to filter
   const hasActivitiesToFilter = selectedMetaActivities.size > 0;
@@ -209,23 +213,26 @@ export function AdvancedFilterPanel({
               </div>
               
               <div className="max-h-[200px] overflow-y-auto border rounded-md">
-                {/* Show selected meta activities */}
-                {selectedMetaActivities.size > 0 ? (
+                {/* Show all meta activities */}
+                {metaActivities.length > 0 ? (
                   <div className="divide-y">
                     {/* Select All option */}
                     <div className="p-2 bg-muted/30">
                       <div className="flex items-center gap-2">
                         <Checkbox 
                           id="activity-filter-select-all" 
-                          checked={tempActivityFilters.size === 0}
-                          onCheckedChange={(checked) => {
+                          checked={metaActivities.length > 0 && selectedMetaActivities.size === metaActivities.length}
+                          onCheckedChange={async (checked) => {
                             if (checked) {
-                              // Show all activities (empty set = show all)
-                              setTempActivityFilters(new Set());
+                              // Select all activities - use the provided function
+                              await selectAllMetaActivities();
                             } else {
-                              // Hide all activities (select none)
-                              // We use a special case where we add a non-existent ID to indicate "hide all"
-                              setTempActivityFilters(new Set(['__hide_all__']));
+                              // Deselect all activities - need to call toggle on each
+                              for (const activity of metaActivities) {
+                                if (selectedMetaActivities.has(activity._id)) {
+                                  await toggleMetaActivitySelection(activity._id);
+                                }
+                              }
                             }
                           }}
                         />
@@ -233,84 +240,46 @@ export function AdvancedFilterPanel({
                           htmlFor="activity-filter-select-all" 
                           className="text-xs font-medium cursor-pointer"
                         >
-                          Show All Activities
+                          Select All Activities
                         </label>
                       </div>
                     </div>
                     
                     <div className="p-1">
-                      {Array.from(selectedMetaActivities)
-                        .filter(activityId => {
+                      {metaActivities
+                        .filter(activity => {
                           // Filter by search query if provided
                           if (!activitySearchQuery) return true;
-                          const activity = metaActivities.find(a => a._id === activityId);
-                          if (!activity) return false;
                           return activity.title.toLowerCase().includes(activitySearchQuery.toLowerCase());
                         })
-                        .map(activityId => {
-                          // Find activity details
-                          const activity = metaActivities.find(a => a._id === activityId);
-                          if (!activity) return null;
-                          
-                          const activityTitle = activity.title || "Untitled Activity";
-                          
-                          // Activity is checked if filter is empty (show all) OR if this specific ID is in the filter
-                          const isChecked = tempActivityFilters.size === 0 || 
-                            (tempActivityFilters.size > 0 && !tempActivityFilters.has('__hide_all__') && tempActivityFilters.has(activityId));
+                        .map(activity => {                         
+                          // Activity is checked if it's in the selected set
+                          const isChecked = selectedMetaActivities.has(activity._id);
                           
                           return (
-                            <div key={activityId} className="flex items-center gap-2 p-1.5 hover:bg-muted/50 rounded mb-1">
+                            <div key={activity._id} className="flex items-center gap-2 p-1.5 hover:bg-muted/50 rounded mb-1">
                               <Checkbox 
-                                id={`activity-filter-${activityId}`} 
+                                id={`activity-filter-${activity._id}`} 
                                 checked={isChecked}
-                                onCheckedChange={(checked) => {
-                                  let newFilters = new Set(tempActivityFilters);
-                                  
-                                  // If filter was empty (show all) and we're unchecking an item
-                                  if (tempActivityFilters.size === 0 && !checked) {
-                                    // Add all IDs except the one being unchecked
-                                    Array.from(selectedMetaActivities).forEach(id => {
-                                      if (id !== activityId) {
-                                        newFilters.add(id);
-                                      }
-                                    });
-                                  }
-                                  // If we had the special "hide all" marker, remove it
-                                  else if (newFilters.has('__hide_all__')) {
-                                    newFilters = new Set([activityId]);
-                                  }
-                                  // Normal case: toggle the activity ID
-                                  else {
-                                    if (checked) {
-                                      newFilters.add(activityId);
-                                    } else {
-                                      newFilters.delete(activityId);
-                                    }
-                                  }
-                                  
-                                  // If all activities are selected, use empty set (show all)
-                                  if (newFilters.size === selectedMetaActivities.size) {
-                                    setTempActivityFilters(new Set());
-                                  } else {
-                                    setTempActivityFilters(newFilters);
-                                  }
+                                onCheckedChange={async (checked) => {
+                                  // Use the proper toggle method to select/deselect
+                                  await toggleMetaActivitySelection(activity._id);
                                 }}
                               />
                               <label 
-                                htmlFor={`activity-filter-${activityId}`} 
+                                htmlFor={`activity-filter-${activity._id}`} 
                                 className="text-xs cursor-pointer flex items-center gap-2 w-full"
                               >
-                                <span className="truncate">{activityTitle}</span>
+                                <span className="truncate">{activity.title || "Untitled Activity"}</span>
                               </label>
                             </div>
                           );
-                        })
-                        .filter(Boolean)}
+                        })}
                     </div>
                   </div>
                 ) : (
                   <div className="text-xs text-muted-foreground text-center py-4">
-                    No activities selected
+                    No activities available
                   </div>
                 )}
               </div>

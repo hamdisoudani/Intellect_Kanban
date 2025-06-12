@@ -5,17 +5,23 @@ import {
   Card,
   Avatar,
   AvatarFallback,
-  Badge
+  Badge,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
 } from '@intellect-kanban/ui';
 import { Calendar, UsersIcon, CheckSquare, Square, Tag, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 import stc from 'string-to-color';
+import Color from 'color';
 import { Tag as TagUI } from '../ui/Tag';
 import { useTags } from '@/hooks/useTags';
 import { Tag as TagType } from '@/types/tags';
 import { Activity, DifficultyLevel } from '@/types/activities';
 import { DifficultyBadge } from './DifficultyBadge';
 import { formatDistanceToNow } from 'date-fns';
+import { cn } from '@intellect-kanban/utils';
 
 interface MetaActivityCardProps {
   activity: Activity;
@@ -99,6 +105,40 @@ export function MetaActivityCard({
     return stc(activity._id);
   };
 
+  // Get avatar styles using the activity color
+  const getAvatarStyles = (index: number) => {
+    try {
+      // Get the base color from activity
+      const baseColor = getActivityColor();
+      
+      // Create a Color object for manipulation
+      const color = Color(baseColor);
+      
+      // Create a darker version for the gradient
+      // Make each avatar slightly different
+      const darkenAmount = 0.1 + (index * 0.05);
+      const darkColor = color.darken(darkenAmount).fade(0.1).toString();
+      const lightColor = color.lighten(0.1).fade(0.2).toString();
+      
+      // Determine if we need light or dark text for contrast
+      const textColor = color.isDark() ? 'text-white' : 'text-gray-900';
+      
+      return {
+        style: {
+          background: `linear-gradient(to bottom right, ${lightColor}, ${darkColor})`,
+          boxShadow: `inset 0 0 0 1px rgba(0,0,0,0.1)`
+        },
+        textColorClass: textColor
+      };
+    } catch (e) {
+      // Fallback styling if color manipulation fails
+      return {
+        style: { background: '#e2e8f0' },
+        textColorClass: "text-gray-800"
+      };
+    }
+  };
+
   // Handle card click - open details dialog
   const handleCardClick = (e: React.MouseEvent) => {
     // Don't trigger if clicking on one of the action buttons
@@ -125,6 +165,12 @@ export function MetaActivityCard({
     
     return name.substring(0, 2).toUpperCase();
   };
+
+  // Card animation variants
+  const cardVariants = {
+    normal: { scale: 1, y: 0 },
+    hover: { scale: 1.01, y: -2 }
+  };
   
   return (
     <motion.div
@@ -132,11 +178,11 @@ export function MetaActivityCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -5 }}
       transition={{ duration: 0.2 }}
-      className="mb-2.5 relative"
+      className="relative"
     >
       {/* Loading overlay */}
       {isLoading && (
-        <div className="absolute inset-0 bg-background/70 backdrop-blur-[1px] rounded-md z-10 flex items-center justify-center">
+        <div className="absolute inset-0 bg-background/70 backdrop-blur-sm rounded-lg z-10 flex items-center justify-center">
           <div className="flex items-center gap-2">
             <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
             <span className="text-xs font-medium">Loading...</span>
@@ -146,7 +192,7 @@ export function MetaActivityCard({
       
       {/* Deletion overlay */}
       {isPendingDeletion && (
-        <div className="absolute inset-0 bg-background/70 backdrop-blur-[1px] rounded-md z-10 flex items-center justify-center">
+        <div className="absolute inset-0 bg-background/70 backdrop-blur-sm rounded-lg z-10 flex items-center justify-center">
           <div className="flex items-center gap-2">
             <div className="h-4 w-4 rounded-full border-2 border-destructive border-t-transparent animate-spin"></div>
             <span className="text-xs font-medium text-destructive">Deleting...</span>
@@ -154,33 +200,55 @@ export function MetaActivityCard({
         </div>
       )}
       
+      <motion.div
+        variants={cardVariants}
+        initial="normal"
+        whileHover="hover"
+        transition={{ 
+          type: "spring", 
+          stiffness: 400, 
+          damping: 17 
+        }}
+      >
       <Card 
-        className={`relative cursor-pointer transition-all hover:shadow-md w-full ${
-          isSelected 
-            ? 'border-primary/70 shadow-sm bg-primary/5' 
-            : 'hover:border-muted-foreground/30'
-        }`}
+          className={cn(
+            "relative cursor-pointer w-full rounded-lg shadow-sm",
+            "transition-all duration-200",
+            "border border-border/50",
+            isSelected ? "border-primary/70 bg-primary/5" : "hover:border-muted-foreground/30 hover:shadow-md",
+          )}
         onClick={handleCardClick}
       >
         {/* Left color indicator */}
         <div 
-          className="absolute left-0 top-0 bottom-0 w-1 rounded-l-sm" 
+            className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-lg" 
           style={{ backgroundColor: getActivityColor() }}
         ></div>
         
         <div className="p-3 pl-4">
           {/* Header with title and action buttons */}
           <div className="flex items-start justify-between gap-2 mb-2">
+              <TooltipProvider>
+                <Tooltip delayDuration={300}>
+                  <TooltipTrigger asChild>
             <h4 className="font-medium text-sm line-clamp-1 flex-1">
               {activity.title}
             </h4>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {activity.title}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             
             <div className="flex items-center gap-1">
               {/* Select button */}
               <button 
-                className={`text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted transition-colors ${
-                  isSelected ? 'bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary' : ''
-                }`}
+                  className={cn(
+                    "text-muted-foreground hover:text-foreground p-1 rounded-full transition-colors",
+                    "hover:bg-muted/50",
+                    isSelected ? "bg-primary/20 text-primary hover:bg-primary/30 hover:text-primary" : ""
+                  )}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (!isLoading && !isPendingDeletion) {
@@ -199,8 +267,9 @@ export function MetaActivityCard({
               </button>
               
               {/* Manage students button */}
+                {isSelected && (
               <button 
-                className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted transition-colors"
+                    className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted/50 transition-colors"
                 onClick={(e) => {
                   e.stopPropagation();
                   if (!isLoading && !isPendingDeletion) {
@@ -213,82 +282,118 @@ export function MetaActivityCard({
               >
                 <UsersIcon className="h-4 w-4" />
               </button>
-            </div>
-          </div>
+                )}
           
-          {/* Difficulty badge */}
-          {activity.difficultyLevel && (
-            <div className="mb-2.5">
-              <DifficultyBadge 
-                difficultyLevel={activity.difficultyLevel as DifficultyLevel} 
-                size="sm"
-              />
-            </div>
-          )}
-          
-          {/* Tags */}
-          {resolvedTags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-2.5">
-              <div className="flex items-center gap-1 text-muted-foreground">
-                <Tag className="h-3 w-3" />
-                <div className="flex gap-1 items-center">
-                  {resolvedTags.slice(0, 2).map((tag: TagType, index: number) => (
-                    <TagUI
-                      key={tag._id || `tag-${index}`}
-                      label={tag.name || 'Unnamed'}
-                      color={tag.color || '#6366F1'}
-                      size="sm"
-                      className="py-0 px-1.5 text-[10px]"
-                    />
-                  ))}
-                  {resolvedTags.length > 2 && (
-                    <Badge variant="outline" className="text-[10px] py-0 h-4 px-1">
-                      +{resolvedTags.length - 2}
-                    </Badge>
+                {/* Details button */}
+                {isSelected && onViewDetails && (
+                  <button 
+                    className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted/50 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!isLoading && !isPendingDeletion && onViewDetails) {
+                        onViewDetails(activity);
+                      }
+                    }}
+                    disabled={isLoading || isPendingDeletion}
+                    title="View details"
+                    aria-label="View details"
+                  >
+                    {isCollapsed ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronUp className="h-4 w-4" />
                   )}
-                </div>
+                  </button>
+                )}
               </div>
             </div>
-          )}
           
-          {/* Footer with metadata */}
-          <div className="flex items-center justify-between pt-1 border-t border-border/40 mt-1.5">
-            {/* Due date or created date */}
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Calendar className="h-3 w-3" />
-              <span>{dueDate || formattedDate}</span>
-            </div>
-            
-            {/* Students count with avatars */}
+            {/* Main content with flexible layout */}
+            <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
+              {/* Left column */}
+              <div className="flex flex-col gap-1.5">
+                {/* Difficulty level */}
+                {activity.difficultyLevel ? (
+                  <DifficultyBadge difficultyLevel={activity.difficultyLevel} />
+                ) : (
+                  <span className="text-xs text-muted-foreground">No difficulty set</span>
+                )}
+                
+                {/* Student count */}
             <div className="flex items-center gap-1.5">
-              {assignedCount > 0 ? (
                 <div className="flex -space-x-2">
-                  {/* Show up to 3 student avatars */}
-                  {[...Array(Math.min(3, assignedCount))].map((_, idx) => (
-                    <Avatar key={idx} className="h-5 w-5 border border-background">
-                      <AvatarFallback className="text-[9px] bg-primary/80 text-primary-foreground">
-                        {getStudentInitials(idx)}
+                    {[...Array(Math.min(assignedCount, 3))].map((_, index) => {
+                      const avatarStyles = getAvatarStyles(index);
+                      return (
+                        <Avatar key={`student-${index}`} className="h-5 w-5 border border-background">
+                          <AvatarFallback 
+                            className={`text-[8px] font-semibold ${avatarStyles.textColorClass}`}
+                            style={avatarStyles.style}
+                          >
+                            {getStudentInitials(index)}
                       </AvatarFallback>
                     </Avatar>
-                  ))}
+                      );
+                    })}
+                  </div>
                   
-                  {/* Show count for additional students */}
-                  {assignedCount > 3 && (
-                    <Badge variant="outline" className="h-5 min-w-[20px] text-[10px] px-1 border border-background flex items-center justify-center font-normal">
-                      +{assignedCount - 3}
-                    </Badge>
-                  )}
+                  <span className="text-xs text-muted-foreground">
+                    {assignedCount > 0 
+                      ? `${assignedCount} ${assignedCount === 1 ? 'student' : 'students'}`
+                      : 'No students'}
+                  </span>
                 </div>
-              ) : (
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  <UsersIcon className="h-3 w-3" />
-                  No students
+              </div>
+              
+              {/* Right column */}
+              <div className="flex flex-col items-end gap-1.5 text-right">
+                {/* Due date */}
+                {dueDate && (
+                  <div className="flex items-center gap-1 text-muted-foreground">
+                    <Calendar className="h-3 w-3" />
+                    <span className="text-xs">{dueDate}</span>
+                  </div>
+                )}
+                
+                {/* Created time */}
+                <span className="text-xs text-muted-foreground">
+                  {formattedDate}
                 </span>
-              )}
+              </div>
             </div>
-          </div>
+            
+            {/* Tags row - at the bottom for better separation */}
+            {resolvedTags.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-border/30">
+                {resolvedTags.slice(0, 3).map(tag => (
+                  <TagUI key={tag._id} label={tag.name} color={tag.color} size="sm" />
+                ))}
+                {resolvedTags.length > 3 && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Badge variant="outline" className="text-[10px] h-5 px-1.5 bg-muted/20">
+                          +{resolvedTags.length - 3}
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xs font-medium">Additional tags:</span>
+                          <div className="flex flex-wrap gap-1">
+                            {resolvedTags.slice(3).map(tag => (
+                              <TagUI key={tag._id} label={tag.name} color={tag.color} size="sm" />
+                            ))}
+                          </div>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
+            )}
         </div>
       </Card>
+      </motion.div>
     </motion.div>
   );
 } 

@@ -1,8 +1,8 @@
 "use client";
 
 import { Button, Input, Badge } from '@intellect-kanban/ui';
-import { Search, Square, CheckSquare, ChevronLeft, ChevronUp, ChevronDown } from 'lucide-react';
-import { useState } from 'react';
+import { Search, Square, CheckSquare, ChevronLeft, ChevronUp, ChevronDown, Filter, X } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MetaActivityCard } from '../MetaActivityCard';
 import { AdvancedFilterPanel } from './AdvancedFilterPanel';
@@ -60,6 +60,8 @@ interface MetaActivitiesColumnProps {
   collapsedActivities?: Set<string>;
   collapseAllActivities?: () => void;
   expandAllActivities?: () => void;
+  hideHeader?: boolean;
+  hideFilterButton?: boolean;
 }
 
 export function MetaActivitiesColumn({
@@ -112,8 +114,20 @@ export function MetaActivitiesColumn({
   // Collapse control
   collapsedActivities,
   collapseAllActivities,
-  expandAllActivities
+  expandAllActivities,
+  hideHeader = false,
+  hideFilterButton = false,
 }: MetaActivitiesColumnProps) {
+  const [showSearch, setShowSearch] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  
+  // Focus the search input when it becomes visible
+  useEffect(() => {
+    if (showSearch && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [showSearch]);
+  
   // Function to filter meta activities by search query
   const getFilteredMetaActivities = () => {
     if (!searchQuery.trim()) {
@@ -148,10 +162,21 @@ export function MetaActivitiesColumn({
     setTempDifficultyFilters(new Set());
     setTempActivityFilters(new Set());
   };
+
+  // Calculate active filter count
+  const activeFilterCount = selectedStudentFilters.size + selectedTagFilters.size + selectedDifficultyFilters.size;
+  
+  // Clear all applied filters
+  const clearAllAppliedFilters = () => {
+    setSelectedStudentFilters(new Set());
+    setSelectedTagFilters(new Set());
+    setSelectedDifficultyFilters(new Set());
+    setSelectedActivityFilters(new Set());
+  };
   
   return (
     <motion.div 
-      className="flex flex-col h-full border rounded-lg overflow-hidden bg-card min-w-[280px] max-w-[280px] shadow-sm"
+      className="flex flex-col h-full overflow-hidden bg-card rounded-xl shadow-sm border border-border/50"
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ 
@@ -159,22 +184,49 @@ export function MetaActivitiesColumn({
         ease: "easeOut" 
       }}
     >
-      {/* Column Header */}
+      {/* Column Header - Enhanced with filter indicators */}
+      {!hideHeader && (
       <motion.div 
-        className="p-3 border-b bg-muted/30 flex items-center justify-between"
+        className="p-4 border-b bg-gradient-to-r from-muted/50 to-muted/10 flex items-center justify-between"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.1 }}
       >
+          {!showSearch ? (
         <div className="flex items-center gap-2">
-          <span className="font-medium">Class Activities</span>
-          <Badge variant="outline" className="text-xs bg-muted px-2 py-0.5 rounded-full">
+          <span className="font-semibold text-lg">Class Activities</span>
+          <Badge variant="outline" className="text-xs bg-background/80 backdrop-blur-sm px-2 py-0.5 rounded-full">
             {activities?.length || 0}
           </Badge>
         </div>
+          ) : (
+            <div className="flex-1 pr-2">
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onBlur={() => setShowSearch(false)}
+                placeholder="Search activities..."
+                className="w-full h-9 px-3 rounded bg-muted text-sm border focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+          )}
         <div className="flex gap-1">
-          {/* Filter button - only show when at least one activity is selected */}
-          {selectedMetaActivities.size > 0 && (
+            {/* Search button */}
+            {!showSearch && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 p-0"
+                onClick={() => setShowSearch(true)}
+              >
+                <Search className="h-4 w-4" />
+              </Button>
+            )}
+            
+            {/* Filter button - Always visible unless hideFilterButton is true */}
+            {!hideFilterButton && (
             <AdvancedFilterPanel 
               isOpen={isStudentFilterOpen}
               onOpenChange={setIsStudentFilterOpen}
@@ -190,176 +242,111 @@ export function MetaActivitiesColumn({
               selectedActivityFilters={selectedActivityFilters}
               tempActivityFilters={tempActivityFilters}
               setTempActivityFilters={setTempActivityFilters}
+                uniqueStudents={uniqueStudents}
+                uniqueTags={uniqueTags}
+                uniqueDifficultyLevels={uniqueDifficultyLevels}
               activeFilterTab={activeFilterTab}
               setActiveFilterTab={setActiveFilterTab}
+                tagSearchQuery={tagSearchQuery}
+                setTagSearchQuery={setTagSearchQuery}
               studentSearchQuery={studentSearchQuery}
               setStudentSearchQuery={setStudentSearchQuery}
-              tagSearchQuery={tagSearchQuery}
-              setTagSearchQuery={setTagSearchQuery}
-              activitySearchQuery={activitySearchQuery}
-              setActivitySearchQuery={setActivitySearchQuery}
+                selectAllMetaActivities={selectAllMetaActivities}
+                toggleMetaActivitySelection={toggleMetaActivitySelection}
               applyFilters={applyFilters}
               clearFilters={clearFilters}
-              uniqueStudents={uniqueStudents}
-              uniqueTags={uniqueTags}
-              uniqueDifficultyLevels={uniqueDifficultyLevels}
-              selectedMetaActivities={selectedMetaActivities}
-              metaActivities={activities}
             />
-          )}
-          
-          {/* Collapse/Expand all button */}
-          {selectedMetaActivities.size > 0 && collapsedActivities && (collapseAllActivities || expandAllActivities) && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 hover:bg-muted/70"
-              onClick={areAllCollapsed() ? expandAllActivities : collapseAllActivities}
-              title={areAllCollapsed() ? "Expand all" : "Collapse all"}
-            >
-              <motion.div
-                animate={{ rotate: areAllCollapsed() ? 0 : 180 }}
-                transition={{ duration: 0.3 }}
-              >
-                <ChevronDown className="h-4 w-4" />
-              </motion.div>
-              <span className="sr-only">{areAllCollapsed() ? "Expand all" : "Collapse all"}</span>
-            </Button>
-          )}
-          
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-7 w-7 hover:bg-muted/70" 
-            onClick={selectAllMetaActivities}
-            disabled={Object.values(isLoadingAssignments).some(loading => loading)}
-          >
-            {activities?.length > 0 && 
-             selectedMetaActivities.size === activities?.length ? (
-              <CheckSquare className="h-4 w-4" />
-            ) : (
-              <Square className="h-4 w-4" />
             )}
-            <span className="sr-only">Select All</span>
-          </Button>
           
-          {/* Collapse column button */}
-          {onCollapseColumn && (
+          {/* Collapse button */}
+            {onCollapseColumn && !hideFilterButton && (
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 hover:bg-muted/70"
+                className="h-7 w-7 p-0"
               onClick={onCollapseColumn}
-              title="Collapse sidebar"
+                aria-label="Collapse sidebar"
             >
               <ChevronLeft className="h-4 w-4" />
-              <span className="sr-only">Collapse sidebar</span>
             </Button>
           )}
         </div>
       </motion.div>
+      )}
       
-      {/* Search Bar */}
-      <motion.div 
-        className="px-3 py-2 border-b"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
-      >
-        <div className="relative">
-          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search activities..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8 h-8 text-sm"
-          />
+      {/* Active Filter Indicators - Let's remove this from the sidebar since it's shown on the board */}
+      {/* We'll keep a simplified indicator here instead of detailed filters */}
+      {activeFilterCount > 0 && (
+        <div className="px-3 py-2 bg-primary/5 border-b">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Filter className="h-3.5 w-3.5 text-primary" />
+              <span className="text-xs text-primary font-medium">
+                {activeFilterCount} filter{activeFilterCount !== 1 ? 's' : ''} active
+              </span>
+            </div>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-6 w-6 rounded-full hover:bg-primary/10"
+              onClick={clearAllAppliedFilters}
+              title="Clear all filters"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
-      </motion.div>
+      )}
       
-      {/* Activities List with improved bottom padding */}
-      <motion.div 
-        className="flex-1 p-2 overflow-y-auto mb-4"
-        style={{ 
-          maxHeight: 'calc(100vh - 180px)',
-          paddingBottom: '16px' // Ensure adequate padding at the bottom
-        }}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.3 }}
-      >
-        <AnimatePresence mode="popLayout">
+      {/* Activities List with improved spacing and organization */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-3">
           {isLoadingActivities ? (
-            // Skeleton loaders for activities
-            Array(3).fill(0).map((_, index) => (
-              <motion.div 
-                key={`skeleton-${index}`}
-                initial={{ opacity: 0, y: 5 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -5 }}
-                transition={{ duration: 0.2, delay: index * 0.1 }}
-                className="rounded-md border p-3 mb-3 animate-pulse bg-muted/20"
-              >
-                <div className="h-4 w-4/5 bg-muted-foreground/20 rounded mb-2"></div>
-                <div className="flex justify-between items-center">
-                  <div className="h-3 w-1/3 bg-muted-foreground/15 rounded"></div>
-                  <div className="flex space-x-1">
-                    <div className="h-4 w-4 rounded-full bg-muted-foreground/15"></div>
-                  </div>
-                </div>
-              </motion.div>
+          // Skeleton loading state
+          Array(5).fill(0).map((_, index) => (
+            <div key={`loading-${index}`} className="h-[80px] bg-muted/20 animate-pulse rounded-lg"></div>
             ))
           ) : getFilteredMetaActivities().length > 0 ? (
-            // Activity cards
-            getFilteredMetaActivities().map((activity, index) => (
-              <motion.div 
+          // Render activities 
+          getFilteredMetaActivities().map(activity => (
+            <MetaActivityCard
                 key={activity._id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ 
-                  duration: 0.3, 
-                  delay: index * 0.05,
-                  ease: [0.2, 0.65, 0.3, 0.9] 
-                }}
-                layout
-              >
-                <MetaActivityCard
                   activity={activity}
                   isSelected={selectedMetaActivities.has(activity._id)}
-                  onSelect={toggleMetaActivitySelection}
-                  onManageStudents={handleManageStudents}
-                  onViewDetails={onViewDetails}
-                  isPendingDeletion={deletingActivityId === activity._id}
-                  isLoading={isLoadingAssignments[activity._id]}
-                  isCollapsed={collapsedActivities?.has(activity._id)}
+              isLoading={isLoadingAssignments[activity._id] || false}
+              isPendingDeletion={activity._id === deletingActivityId}
+              onSelect={() => toggleMetaActivitySelection(activity._id)}
+              onManageStudents={() => handleManageStudents(activity)}
+              onViewDetails={() => onViewDetails(activity)}
                 />
-              </motion.div>
             ))
           ) : (
-            // Empty state
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex flex-col items-center justify-center h-[200px] p-4 text-center"
-            >
-              <div className="text-muted-foreground text-sm">
+          // Empty state with more instructive messaging
+          <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
+            <div className="w-12 h-12 rounded-full bg-muted/20 flex items-center justify-center mb-3">
+              <Search className="h-5 w-5 text-muted-foreground" />
+            </div>
                 {searchQuery ? (
                   <>
-                    <p className="font-medium">No activities found</p>
-                    <p className="text-xs mt-1">Try a different search term</p>
+                <p className="text-sm font-medium">No matching activities</p>
+                <p className="text-xs text-muted-foreground mt-1">Try a different search term</p>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="mt-3 text-xs h-7"
+                  onClick={() => setSearchQuery('')}
+                >
+                  Clear Search
+                </Button>
                   </>
                 ) : (
                   <>
-                    <p className="font-medium">No class activities</p>
-                    <p className="text-xs mt-1">Create activities to view them here</p>
+                <p className="text-sm font-medium">No activities available</p>
+                <p className="text-xs text-muted-foreground mt-1">Activities will appear here when created</p>
                   </>
                 )}
               </div>
-            </motion.div>
           )}
-        </AnimatePresence>
-      </motion.div>
+      </div>
     </motion.div>
   );
 } 

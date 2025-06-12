@@ -55,6 +55,7 @@ import { DifficultyBadge } from './DifficultyBadge';
 import { Tag } from '../ui/Tag';
 import stc from 'string-to-color';
 import { DifficultyLevel } from '@/types/activities';
+import Color from 'color';
 
 // Generic Activity interface that works with both Activity types in the codebase
 interface GenericActivity {
@@ -239,6 +240,45 @@ export function MetaActivityDetailDialog({
     }
   };
 
+  // Add this function to generate avatar styles based on activity
+  const getAvatarStyles = (studentId: string) => {
+    try {
+      if (!activity?._id) return defaultAvatarStyle();
+      
+      // Get base color from activity ID
+      const baseColor = stc(activity._id);
+      
+      // Use student ID to create a slight variation
+      const seed = studentId.charCodeAt(0) || 0;
+      const variation = (seed % 30) / 100; // 0-0.29 variation
+      
+      // Create a Color object for manipulation
+      const color = Color(baseColor);
+      
+      // Create a darker version for the gradient with student-specific variation
+      const darkColor = color.darken(0.2 + variation).fade(0.1).toString();
+      const lightColor = color.lighten(0.1).fade(0.1).toString();
+      
+      // Determine if we need light or dark text for contrast
+      const textColor = color.isDark() ? 'text-white' : 'text-gray-900';
+      
+      return {
+        style: {
+          background: `linear-gradient(to bottom right, ${lightColor}, ${darkColor})`,
+          boxShadow: `inset 0 0 0 1px rgba(0,0,0,0.1)`
+        },
+        textColorClass: textColor
+      };
+    } catch (e) {
+      return defaultAvatarStyle();
+    }
+  };
+  
+  const defaultAvatarStyle = () => ({
+    style: { background: '#e2e8f0' },
+    textColorClass: "text-gray-800"
+  });
+
   // Render content based on active tab
   const renderTabContent = () => {
     switch (activeTab) {
@@ -303,10 +343,15 @@ export function MetaActivityDetailDialog({
             
             {assignedStudents.length > 0 ? (
               <div className="space-y-2">
-                {assignedStudents.map(student => (
+                {assignedStudents.map(student => {
+                  const avatarStyles = getAvatarStyles(student._id);
+                  return (
                   <div key={student._id} className="flex items-center gap-3 p-2 rounded-md bg-muted/20">
                     <Avatar className="h-8 w-8">
-                      <AvatarFallback className="text-xs bg-gradient-to-br from-indigo-400/80 to-indigo-600/80 text-white">
+                        <AvatarFallback 
+                          className={`text-xs font-semibold ${avatarStyles.textColorClass}`}
+                          style={avatarStyles.style}
+                        >
                         {student.name?.substring(0, 2).toUpperCase() || 'ST'}
                       </AvatarFallback>
                     </Avatar>
@@ -314,7 +359,8 @@ export function MetaActivityDetailDialog({
                       <p className="text-sm font-medium">{student.name}</p>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-sm text-muted-foreground">

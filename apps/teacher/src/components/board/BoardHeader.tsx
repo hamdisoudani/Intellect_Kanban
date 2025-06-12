@@ -10,8 +10,7 @@ import {
   Input,
   Avatar,
   AvatarImage,
-  AvatarFallback,
-  Separator
+  AvatarFallback
 } from '@intellect-kanban/ui';
 import { Board } from '@/utils/types';
 import { 
@@ -20,8 +19,6 @@ import {
   PlusCircleIcon,
   PencilIcon,
   CheckIcon,
-  ShareIcon,
-  TrashIcon,
   User,
   Users,
   LogOut
@@ -29,7 +26,7 @@ import {
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { getSession, logout } from '@/server/auth-actions';
-import { BoardStudents, Student } from './BoardStudents';
+import { BoardStudents } from './BoardStudents';
 
 interface BoardHeaderProps {
   board: Board;
@@ -146,17 +143,31 @@ export function BoardHeader({
   };
 
   return (
-    <div className="px-4 py-3 border-b mb-4 bg-background">
-      {/* Board header with flexible layout */}
-      <div className="flex flex-wrap gap-3 items-center justify-between">
-        <div className="flex items-center gap-4">
+    <div className="px-2 sm:px-8 py-1.5 sm:py-4 border-b mb-2 sm:mb-4 bg-background">
+      <div className="flex items-center gap-1 sm:gap-3 overflow-x-auto whitespace-nowrap">
+        {/* Back button */}
+        {board.classId && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 min-w-0 p-0 flex-shrink-0 sm:mr-2"
+            asChild
+          >
+            <Link href={`/dashboard/classes/${getClassIdString(board.classId)}`}>
+              <ChevronLeftIcon className="h-5 w-5" />
+              <span className="sr-only">Back</span>
+            </Link>
+          </Button>
+        )}
+        {/* Board title and edit */}
+        <div className="flex items-center gap-1 min-w-0">
           {isEditingTitle ? (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 handleTitleChange();
               }}
-              className="flex items-center gap-2"
+              className="flex items-center gap-1 min-w-0"
             >
               <Input
                 ref={inputRef}
@@ -164,180 +175,107 @@ export function BoardHeader({
                 onChange={(e) => setBoardTitle(e.target.value)}
                 onBlur={handleTitleChange}
                 onKeyDown={handleKeyDown}
-                className="text-xl font-semibold h-9 w-full max-w-xs"
+                className="text-base sm:text-2xl font-semibold h-7 sm:h-10 w-24 sm:w-[320px] min-w-[120px] sm:min-w-[180px] max-w-[90vw] sm:max-w-[400px] truncate"
               />
               <Button
                 type="submit"
-                size="sm"
-                variant="secondary"
-                className="h-9 px-2"
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 sm:h-8 sm:w-8 p-0"
               >
                 <CheckIcon className="h-4 w-4" />
               </Button>
             </form>
           ) : (
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold">{board.name}</h1>
+            <div className="flex items-center gap-1 min-w-0">
+              <h1 className="text-base sm:text-2xl font-semibold truncate min-w-[120px] sm:min-w-[180px] max-w-[90vw] sm:max-w-[400px]">{board.name}</h1>
               <Button
                 variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
+                size="icon"
+                className="h-7 w-7 sm:h-8 sm:w-8 p-0"
                 onClick={() => setIsEditingTitle(true)}
               >
-                <PencilIcon className="h-3.5 w-3.5" />
+                <PencilIcon className="h-4 w-4" />
                 <span className="sr-only">Edit title</span>
               </Button>
             </div>
           )}
-
-          {/* View toggle */}
-          {onViewChange && (
-            <div className="bg-background border rounded-md shadow-sm">
-              <div className="flex">
-                <Button
-                  variant={currentView === 'personal' ? 'default' : 'ghost'} 
-                  size="sm"
-                  className="rounded-r-none border-0 text-xs px-3 h-8 font-medium"
-                  onClick={() => onViewChange('personal')}
-                >
-                  <User className="h-3.5 w-3.5 mr-1.5" />
-                  <span>Personal</span>
-                </Button>
-                <Button
-                  variant={currentView === 'class' ? 'default' : 'ghost'}
-                  size="sm"
-                  className="rounded-l-none border-0 border-l text-xs px-3 h-8 font-medium"
-                  onClick={() => onViewChange('class')}
-                >
-                  <Users className="h-3.5 w-3.5 mr-1.5" />
-                  <span>Class</span>
-                </Button>
               </div>
-            </div>
-          )}
-          
-          {/* Display students when in class view and board has students */}
+        {/* Online students (desktop only) */}
           {currentView === 'class' && board.classId && board.students && board.students.length > 0 && (
-            <>
-              <Separator orientation="vertical" className="h-8 mx-2" />
+          <div className="hidden sm:block sm:ml-4">
               <BoardStudents 
                 students={board.students.map(student => ({
                   id: getStudentId(student),
                   name: student.name || 'Unknown Student',
-                  // For now, we're setting random online status for demo
-                  // This will be replaced with real-time data in the future
                   isOnline: Math.random() > 0.5
                 }))} 
                 maxVisible={5}
               />
-            </>
-          )}
         </div>
-
-        <div className="flex items-center gap-2">
-          {/* Back to class button - moved to the action buttons area */}
-          {board.classId && (
-            <Button
-              variant="outline" 
-              size="sm"
-              className="h-8 text-xs"
-              asChild
-            >
-              <Link href={`/dashboard/classes/${getClassIdString(board.classId)}`}>
-                <ChevronLeftIcon className="mr-1.5 h-3.5 w-3.5" />
-                Back to class
-              </Link>
-            </Button>
-          )}
-          
+        )}
+        {/* View toggle */}
+        {onViewChange && (
+          <div className="ml-2 sm:ml-4">
+            <div className="bg-background border rounded-md shadow-sm flex">
           <Button 
-            variant="outline" 
-            size="sm"
-            className="h-8 text-xs"
-            onClick={() => {
-              if (onActivityButtonClick) {
-                onActivityButtonClick();
-              } else if (onCreateActivity) {
-                onCreateActivity();
-              } else {
-                toast.info('Create activity functionality coming soon');
-              }
-            }}
+                variant={currentView === 'personal' ? 'default' : 'ghost'}
+                size="icon"
+                className="rounded-r-none border-0 h-7 w-7 sm:h-9 sm:w-20 text-xs font-medium"
+                onClick={() => onViewChange('personal')}
           >
-            <PlusCircleIcon className="mr-1.5 h-3.5 w-3.5" />
-            Create Activity
+                <User className="h-4 w-4" />
+                <span className="hidden sm:inline ml-1">Personal</span>
           </Button>
-          
           <Button 
-            variant="outline" 
-            size="sm" 
-            className="hidden md:flex h-8 text-xs"
-            onClick={() => toast.info('Share functionality coming soon')}
+                variant={currentView === 'class' ? 'default' : 'ghost'}
+                size="icon"
+                className="rounded-l-none border-0 border-l h-7 w-7 sm:h-9 sm:w-20 text-xs font-medium"
+                onClick={() => onViewChange('class')}
           >
-            <ShareIcon className="mr-1.5 h-3.5 w-3.5" />
-            Share
+                <Users className="h-4 w-4" />
+                <span className="hidden sm:inline ml-1">Class</span>
           </Button>
-          
+            </div>
+          </div>
+        )}
+        {/* Spacer for desktop */}
+        <div className="flex-1" />
+        {/* Actions: add, settings, avatar */}
+        {onActivityButtonClick && (
           <Button 
             variant="ghost" 
-            size="sm"
-            className="h-8 w-8 p-0"
-            onClick={() => toast.info('Settings functionality coming soon')}
+            size="icon"
+            className="h-7 w-7 sm:h-8 sm:w-8 p-0"
+            onClick={onActivityButtonClick}
           >
-            <SettingsIcon className="h-4 w-4" />
-            <span className="sr-only">Settings</span>
+            <PlusCircleIcon className="h-4 w-4" />
+            <span className="sr-only">Add Activity</span>
           </Button>
-          
-          <Button 
-            variant="ghost" 
-            size="sm"
-            className="h-8 w-8 p-0 text-destructive"
-            onClick={() => toast.info('Delete functionality coming soon')}
-          >
-            <TrashIcon className="h-4 w-4" />
-            <span className="sr-only">Delete board</span>
-          </Button>
-
-          {/* User Profile Dropdown */}
-          {user && (
+        )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-8 w-8 rounded-full p-0 ml-2">
-                  <Avatar className="h-8 w-8">
-                    {user.image ? (
-                      <AvatarImage src={user.image} alt={user.name || 'User'} />
-                    ) : (
-                      <AvatarFallback>{user.name?.charAt(0) || 'U'}</AvatarFallback>
-                    )}
-                  </Avatar>
-                  <span className="sr-only">User menu</span>
+            <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8">
+              <SettingsIcon className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <div className="flex items-center justify-start gap-2 p-2">
-                  <div className="flex flex-col space-y-1 leading-none">
-                    {user.name && <p className="font-medium">{user.name}</p>}
-                    {user.email && (
-                      <p className="w-[200px] truncate text-sm text-muted-foreground">
-                        {user.email}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <DropdownMenuItem asChild>
-                  <Link href="/dashboard/settings">
-                    <SettingsIcon className="mr-2 h-4 w-4" />
-                    <span>Settings</span>
-                  </Link>
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleSignOut}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Log out</span>
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign out
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          )}
-        </div>
+        {user && (
+          <div className="hidden sm:block">
+            <Avatar className="h-7 w-7 sm:h-8 sm:w-8">
+              <AvatarFallback>
+                {user.name?.charAt(0) || user.email?.charAt(0) || 'U'}
+              </AvatarFallback>
+              {user.image && <AvatarImage src={user.image} alt={user.name || ''} />}
+            </Avatar>
+          </div>
+        )}
       </div>
     </div>
   );

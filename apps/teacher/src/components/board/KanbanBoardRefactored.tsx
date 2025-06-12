@@ -75,7 +75,8 @@ export function KanbanBoardRefactored({ boardId }: KanbanBoardProps) {
     isManageStudentsOpen,
     fetchAssignmentsForActivity,
     openManageStudents,
-    closeManageStudents
+    closeManageStudents,
+    fetchAssignmentsForNewActivities
   } = useAssignmentsStore();
   
   const {
@@ -138,10 +139,9 @@ export function KanbanBoardRefactored({ boardId }: KanbanBoardProps) {
   useEffect(() => {
     if (!board || !board._id) return;
     
-    selectedMetaActivities.forEach(activityId => {
-      fetchAssignmentsForActivity(board._id, activityId);
-    });
-  }, [board, selectedMetaActivities, fetchAssignmentsForActivity]);
+    // Use the new method that only fetches assignments for new activities
+    fetchAssignmentsForNewActivities(board._id, Array.from(selectedMetaActivities));
+  }, [board, selectedMetaActivities, fetchAssignmentsForNewActivities]);
 
   // Helper functions for column assignments
   const getAllColumnAssignments = (columnId: string): any[] => {
@@ -175,7 +175,10 @@ export function KanbanBoardRefactored({ boardId }: KanbanBoardProps) {
       filteredAssignments = filteredAssignments.filter(a => {
         const activityId = typeof a.activityId === 'object' ? a.activityId._id : a.activityId;
         const activity = metaActivities.find(act => act._id === activityId);
-        return activity && activity.difficultyLevel ? selectedDifficultyFilters.has(activity.difficultyLevel) : false;
+        
+        // Make sure we have a valid difficulty level and it's in the selected filters
+        return activity && activity.difficultyLevel ? 
+          selectedDifficultyFilters.has(activity.difficultyLevel) : false;
       });
     }
     return filteredAssignments;
@@ -209,16 +212,20 @@ export function KanbanBoardRefactored({ boardId }: KanbanBoardProps) {
   };
 
   const getUniqueDifficultyLevelsFromSelectedActivities = (): { level: any, label: string, color: string }[] => {
+    const { difficultyLevelLabels, difficultyLevelColors } = require('@/types/activities');
     const uniqueLevels = new Set();
+    
+    // Collect unique difficulty levels from selected activities
     selectedMetaActivities.forEach(activityId => {
       const activity = metaActivities.find(act => act._id === activityId);
       if (activity?.difficultyLevel) uniqueLevels.add(activity.difficultyLevel);
     });
     
+    // Convert to array with proper labels and colors
     return Array.from(uniqueLevels).map((level: any) => ({
       level,
-      label: level ? (level.label || 'Unknown') : 'Unknown',
-      color: level ? (level.color || '#ccc') : '#ccc'
+      label: difficultyLevelLabels[level] || 'Unknown',
+      color: difficultyLevelColors[level] || '#ccc'
     }));
   };
 
@@ -262,10 +269,8 @@ export function KanbanBoardRefactored({ boardId }: KanbanBoardProps) {
       // Refresh activities
       await fetchActivities(board._id);
       
-      // Refresh assignments for selected activities
-      selectedMetaActivities.forEach(activityId => {
-        fetchAssignmentsForActivity(board._id, activityId);
-      });
+      // Use the new method to refresh assignments for selected activities without unnecessary refetching
+      fetchAssignmentsForNewActivities(board._id, Array.from(selectedMetaActivities));
     }
   };
 
@@ -319,7 +324,7 @@ export function KanbanBoardRefactored({ boardId }: KanbanBoardProps) {
   // Main render
   return (
     <TagsProvider boardId={boardId}>
-      <div className="flex flex-col h-screen">
+      <div className="flex flex-col h-screen max-h-screen overflow-hidden">
         <BoardHeader 
           board={board} 
           onActivityButtonClick={() => openCreateActivity(null)}
@@ -327,46 +332,48 @@ export function KanbanBoardRefactored({ boardId }: KanbanBoardProps) {
           currentView={currentView}
         />
 
-        <div className="flex-1 overflow-hidden px-4 pb-8">
+        <div className="flex-1 overflow-hidden">
           {currentView === 'personal' ? (
-            <PersonalViewBoard 
-              columns={board.columns}
-              activities={activities}
-              isLoadingActivities={isLoadingActivities}
-              draggingActivity={draggingActivity}
-              draggingFromColumn={draggingFromColumn}
-              handleDragStart={startDrag}
-              handleDragOver={handleDragOver}
-              handleDrop={(e, columnId) => handleDrop(boardId, columnId)}
-              handleOpenActivityDetail={openActivityDetail}
-              deletingActivityId={deletingActivityId}
-              onAddActivity={handleAddActivityToColumn}
-            />
+            <div className="h-full px-2 sm:px-4 pb-4 sm:pb-6">
+              <PersonalViewBoard 
+                columns={board.columns}
+                items={activities}
+                itemType="activity"
+                isLoading={isLoadingActivities}
+                draggingItem={draggingActivity}
+                draggingFromColumn={draggingFromColumn}
+                handleDragStart={startDrag}
+                handleDragOver={handleDragOver}
+                handleDrop={(e: React.DragEvent, columnId: string) => handleDrop(boardId, columnId)}
+                handleOpenDetail={openActivityDetail}
+                deletingItemId={deletingActivityId}
+                onAddItem={handleAddActivityToColumn}
+              />
+            </div>
           ) : (
             <ClassViewBoard 
+              boardId={boardId}
               columns={board.columns}
-              activities={activities}
-              isLoadingActivities={isLoadingActivities}
-              draggingActivity={draggingActivity}
+              draggingItem={draggingActivity}
               draggingFromColumn={draggingFromColumn}
               handleDragStart={startDrag}
               handleDragOver={handleDragOver}
-              handleDrop={(e, columnId) => handleDrop(boardId, columnId)}
-              handleOpenActivityDetail={openActivityDetail}
-              deletingActivityId={deletingActivityId}
+              handleDrop={(e: React.DragEvent, columnId: string) => handleDrop(boardId, columnId)}
+              handleOpenDetail={openMetaActivityDetail}
+              deletingItemId={deletingActivityId}
               metaActivities={metaActivities}
               selectedMetaActivities={selectedMetaActivities}
+              assignments={assignmentsByActivity}
               isLoadingAssignments={isLoadingAssignments}
+              isLoadingActivities={isLoadingActivities}
               toggleMetaActivitySelection={toggleMetaActivitySelection}
               selectAllMetaActivities={selectAllMetaActivities}
               handleManageStudents={openManageStudents}
-              handleViewMetaActivityDetails={openMetaActivityDetail}
-              searchQuery={metaActivitySearchQuery}
-              setSearchQuery={setMetaActivitySearchQuery}
-              getColumnAssignments={getColumnAssignments}
-              getAllColumnAssignments={getAllColumnAssignments}
-              areAllAssignmentsLoading={areAllAssignmentsLoading}
-              mightHaveAssignmentsLoading={mightHaveAssignmentsLoading}
+              onViewDetails={openMetaActivityDetail}
+              metaActivitySearchQuery={metaActivitySearchQuery}
+              setMetaActivitySearchQuery={setMetaActivitySearchQuery}
+              
+              // Filter props
               isStudentFilterOpen={isStudentFilterOpen}
               setIsStudentFilterOpen={setIsStudentFilterOpen}
               selectedStudentFilters={selectedStudentFilters}
@@ -387,6 +394,8 @@ export function KanbanBoardRefactored({ boardId }: KanbanBoardProps) {
               setStudentSearchQuery={setStudentSearchQuery}
               tagSearchQuery={tagSearchQuery}
               setTagSearchQuery={setTagSearchQuery}
+              
+              // Data for filters
               uniqueStudents={getUniqueStudentsFromSelectedActivities()}
               uniqueTags={getUniqueTagsFromSelectedActivities()}
               uniqueDifficultyLevels={getUniqueDifficultyLevelsFromSelectedActivities()}

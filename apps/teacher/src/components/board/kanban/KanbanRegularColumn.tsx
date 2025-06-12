@@ -5,73 +5,57 @@ import { Button, Badge } from '@intellect-kanban/ui';
 import { Filter, X, UsersIcon, TagIcon, AlertCircle, ChevronUp, ChevronDown, Layers } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { KanbanActivityCard } from '../KanbanActivityCard';
-import { AssignmentCard } from '../AssignmentCard';
-import stc from 'string-to-color';
 
 interface KanbanRegularColumnProps {
   column: { id: string; name: string; order?: number };
-  currentView: 'personal' | 'class';
-  activities: any[]; // Personal activities in this column
-  assignments: any[]; // Assignments in this column
-  allAssignments: any[]; // All assignments without filters for counts
-  isLoadingActivities: boolean;
-  areAssignmentsLoading: boolean;
-  draggingActivity: string | null;
+  items: any[];
+  itemType: 'activity' | 'assignment';
+  isLoading: boolean;
+  draggingItem: string | null;
   draggingFromColumn: string | null;
-  selectedMetaActivities: Set<string>;
-  handleDragStart: (activityId: string, columnId: string) => void;
+  handleDragStart: (itemId: string, columnId: string) => void;
   handleDragOver: (e: React.DragEvent, columnId: string) => void;
   handleDrop: (e: React.DragEvent, columnId: string) => void;
-  handleOpenActivityDetail: (activity: any) => void;
-  deletingActivityId: string;
-  onAddActivity?: (columnId: string) => void;
+  handleOpenDetail: (item: any) => void;
+  deletingItemId: string | null;
+  onAddItem?: (columnId: string) => void;
+
+  // Class view specific props
+  allAssignments?: any[];
   isMetaColumnCollapsed?: boolean;
   
   // Filter related props
-  selectedStudentFilters: Set<string>;
-  selectedTagFilters: Set<string>;
-  selectedDifficultyFilters: Set<any>;
+  selectedStudentFilters?: Set<string>;
+  selectedTagFilters?: Set<string>;
+  selectedDifficultyFilters?: Set<any>;
   selectedActivityFilters?: Set<string>;
-  clearAllFilters: () => void;
-
-  // Shared collapse state
-  collapsedActivities?: Set<string>;
-  toggleActivityCollapse?: (activityId: string) => void;
-  collapseAllActivities?: () => void;
-  expandAllActivities?: () => void;
+  clearAllFilters?: () => void;
 }
 
 export function KanbanRegularColumn({
   column,
-  currentView,
-  activities,
-  assignments,
-  allAssignments,
-  isLoadingActivities,
-  areAssignmentsLoading,
-  draggingActivity,
+  items,
+  itemType,
+  isLoading,
+  draggingItem,
   draggingFromColumn,
-  selectedMetaActivities,
   handleDragStart,
   handleDragOver,
   handleDrop,
-  handleOpenActivityDetail,
-  deletingActivityId,
-  onAddActivity,
+  handleOpenDetail,
+  deletingItemId,
+  onAddItem,
+  
+  // Class view specific props
+  allAssignments = [],
   isMetaColumnCollapsed,
   
   // Filter related props
-  selectedStudentFilters,
-  selectedTagFilters,
-  selectedDifficultyFilters,
+  selectedStudentFilters = new Set<string>(),
+  selectedTagFilters = new Set<string>(),
+  selectedDifficultyFilters = new Set<any>(),
   selectedActivityFilters = new Set<string>(),
-  clearAllFilters,
-
-  // Shared collapse state
-  collapsedActivities = new Set<string>(),
-  toggleActivityCollapse = () => {},
-  collapseAllActivities = () => {},
-  expandAllActivities = () => {}
+  clearAllFilters = () => {},
 }: KanbanRegularColumnProps) {
   // Check if any filters are active
   const hasActiveFilters = selectedStudentFilters.size > 0 || 
@@ -81,61 +65,13 @@ export function KanbanRegularColumn({
 
   // Get the appropriate count for the column badge
   const getColumnBadgeCount = () => {
-    if (currentView === 'personal') {
-      // For personal view, use activity count
-      return activities?.length || 0;
-    } else {
-      // For class view, use filtered assignment count
-      return assignments?.length || 0;
-    }
+    return items.length;
   };
-  
-  // Group assignments by activity
-  const groupedAssignments = useMemo(() => {
-    if (currentView !== 'class' || assignments.length === 0) return {};
-    
-    const groups: Record<string, any[]> = {};
-    
-    assignments.forEach(assignment => {
-      const activityId = typeof assignment.activityId === 'object' 
-        ? assignment.activityId._id 
-        : assignment.activityId;
-        
-      if (!groups[activityId]) {
-        groups[activityId] = [];
-      }
-      groups[activityId].push(assignment);
-    });
-    
-    return groups;
-  }, [assignments, currentView]);
-  
-  // Get activity titles for the groups
-  const activityGroups = useMemo(() => {
-    return Object.keys(groupedAssignments).map(activityId => {
-      // Try to find the activity title from the first assignment
-      const firstAssignment = groupedAssignments[activityId][0];
-      const activity = typeof firstAssignment.activityId === 'object' 
-        ? firstAssignment.activityId 
-        : { _id: activityId, title: 'Unknown Activity' };
-        
-      return {
-        id: activityId,
-        title: activity.title || 'Unknown Activity',
-        count: groupedAssignments[activityId].length,
-        color: stc(activityId)
-      };
-    }).sort((a, b) => a.title.localeCompare(b.title));
-  }, [groupedAssignments]);
-  
-  // Check if all activities are collapsed
-  const areAllCollapsed = activityGroups.length > 0 && 
-    activityGroups.every(group => collapsedActivities.has(group.id));
   
   return (
     <div 
       className={`flex flex-col h-full border rounded-lg overflow-hidden bg-card shadow-sm w-full ${
-        currentView === 'personal' 
+        itemType === 'activity' 
           ? '' 
           : isMetaColumnCollapsed 
             ? 'flex-1' 
@@ -154,16 +90,16 @@ export function KanbanRegularColumn({
           </Badge>
           
           {/* Show filtered vs total count when filters are active in class view */}
-          {currentView === 'class' && hasActiveFilters && (
+          {itemType === 'assignment' && hasActiveFilters && (
             <span className="text-xs text-muted-foreground flex-shrink-0">
-              {assignments?.length}/{allAssignments?.length}
+              {items.length}/{allAssignments.length}
             </span>
           )}
         </div>
         
         <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
           {/* Filter badges in class view */}
-          {currentView === 'class' && hasActiveFilters && (
+          {itemType === 'assignment' && hasActiveFilters && (
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -189,31 +125,13 @@ export function KanbanRegularColumn({
           )}
           
           {/* Add activity button in personal view */}
-          {currentView === 'personal' && onAddActivity && (
+          {itemType === 'activity' && onAddItem && (
             <button 
               className="text-xs text-muted-foreground hover:text-foreground p-1 rounded flex-shrink-0"
-              onClick={() => onAddActivity(column.id)}
+              onClick={() => onAddItem(column.id)}
             >
               +
             </button>
-          )}
-          
-          {/* Expand/Collapse All button for class view */}
-          {currentView === 'class' && activityGroups.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-1 text-xs flex-shrink-0"
-              onClick={areAllCollapsed ? expandAllActivities : collapseAllActivities}
-              title={areAllCollapsed ? "Expand all" : "Collapse all"}
-            >
-              {areAllCollapsed ? (
-                <ChevronDown className="h-3 w-3 mr-1" />
-              ) : (
-                <ChevronUp className="h-3 w-3 mr-1" />
-              )}
-              <span className="hidden sm:inline">{areAllCollapsed ? "Expand" : "Collapse"}</span>
-            </Button>
           )}
         </div>
       </div>
@@ -221,9 +139,9 @@ export function KanbanRegularColumn({
       {/* Column Content */}
       <div className="flex-1 p-2 pb-6 overflow-y-auto w-full" style={{ maxHeight: 'calc(100vh - 180px)' }}>
         {/* Loading Skeletons */}
-        {isLoadingActivities && currentView === 'personal' && (
+        {isLoading && (
           Array(3).fill(0).map((_, index) => (
-            <div key={`skeleton-${index}`} className="rounded-md border p-2 animate-pulse">
+            <div key={`skeleton-${index}`} className="rounded-md border p-2 animate-pulse mb-3">
               <div className="h-4 w-3/4 bg-muted-foreground/20 rounded mb-2"></div>
               <div className="flex justify-between items-center">
                 <div className="h-3 w-1/4 bg-muted-foreground/15 rounded"></div>
@@ -233,174 +151,45 @@ export function KanbanRegularColumn({
           ))
         )}
         
-        {/* Personal Activities - Only in personal view */}
-        {currentView === 'personal' && !isLoadingActivities && (
-          activities?.map((activity) => (
+        {/* Render activities */}
+        {!isLoading && itemType === 'activity' && items.map((item) => (
             <KanbanActivityCard 
-              key={activity._id}
-              activity={activity}
-              onClick={handleOpenActivityDetail}
-              isPendingDeletion={deletingActivityId === activity._id}
-              isMetaActivity={activity.type === 'meta'}
-              onDragStart={(e, activity) => {
-                if (activity.type === 'meta') return;
-                
-                handleDragStart(activity._id, column.id);
-                // Set ghost image data
-                e.dataTransfer.setData('text/plain', activity._id);
+            key={item._id}
+            item={item}
+            itemType="activity"
+            onClick={handleOpenDetail}
+            isPendingDeletion={deletingItemId === item._id}
+            isMetaActivity={item.type === 'meta'}
+            onDragStart={(e, draggedItem) => {
+              if (draggedItem.type === 'meta') return;
+              handleDragStart(draggedItem._id, column.id);
+              e.dataTransfer.setData('text/plain', draggedItem._id);
               }}
             />
-          ))
-        )}
+        ))}
         
-        {/* Assignments - Only in class view, grouped by activity */}
-        {currentView === 'class' && (
-          <>
-            <AnimatePresence>
-              {activityGroups.map(group => (
-                <div key={group.id} className="mb-4">
-                  {/* Activity Group Header */}
-                  <div 
-                    className="flex items-center justify-between py-2 px-2 mb-2 bg-muted/40 rounded-md cursor-pointer hover:bg-muted/60 transition-colors"
-                    onClick={() => toggleActivityCollapse(group.id)}
-                    style={{ borderLeft: `4px solid ${group.color}` }}
-                  >
-                    <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
-                      <span className="inline-block h-3 w-3 rounded-full flex-shrink-0" style={{ backgroundColor: group.color }}></span>
-                      <span className="text-xs font-medium truncate">{group.title}</span>
-                      <Badge variant="outline" className="h-5 px-1.5 ml-1 flex-shrink-0">
-                        {group.count}
-                      </Badge>
-                    </div>
-                    <motion.div
-                      initial={{ rotate: collapsedActivities.has(group.id) ? 0 : 180 }}
-                      animate={{ rotate: collapsedActivities.has(group.id) ? 0 : 180 }}
-                      transition={{ duration: 0.3 }}
-                      className="flex-shrink-0"
-                    >
-                      <Button variant="ghost" size="icon" className="h-5 w-5 p-0">
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      </Button>
-                    </motion.div>
-                  </div>
-                  
-                  {/* Assignments for this activity */}
-                  <AnimatePresence>
-                    {!collapsedActivities.has(group.id) && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                        className="overflow-hidden pl-1 pr-1"
-                      >
-                        {groupedAssignments[group.id].map((assignment, idx) => (
-                          <motion.div 
+        {/* Render assignments */}
+        {!isLoading && itemType === 'assignment' && (
+          items.length > 0 ? (
+            items.map(assignment => (
+              <KanbanActivityCard
                             key={assignment._id} 
-                            className="mb-4 w-full"
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ 
-                              delay: idx * 0.05, 
-                              duration: 0.2,
-                              ease: [0.2, 0.65, 0.3, 0.9]  
-                            }}
-                          >
-                            <AssignmentCard
-                              assignment={assignment}
-                              activityId={group.id}
-                              activityColor={group.color}
-                            />
-                          </motion.div>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                item={assignment}
+                itemType="assignment"
+                onClick={handleOpenDetail}
+                isPendingDeletion={deletingItemId === assignment._id}
+                onDragStart={(e, draggedItem) => {
+                  handleDragStart(draggedItem._id, column.id);
+                  e.dataTransfer.setData('text/plain', draggedItem._id);
+                }}
+              />
+            ))
+          ) : (
+            <div className="flex items-center justify-center h-full text-xs text-muted-foreground p-4 text-center">
+              {hasActiveFilters ? "No assignments match filters" : "No assignments in this column"}
                 </div>
-              ))}
-            </AnimatePresence>
-            
-            {/* Assignment loading state */}
-            {areAssignmentsLoading && assignments.length === 0 && (
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex justify-center items-center p-4 text-sm text-muted-foreground"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
-                  <span>Loading assignments...</span>
-                </div>
-              </motion.div>
-            )}
-            
-            {/* Empty state - with filters active */}
-            {!areAssignmentsLoading && assignments.length === 0 && selectedMetaActivities.size > 0 && hasActiveFilters && (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.2 }}
-                className="flex flex-col items-center p-4 text-sm text-muted-foreground border border-dashed rounded-md min-h-[200px] justify-center"
-              >
-                <Filter className="h-5 w-5 mb-2 text-muted-foreground/50" />
-                <span className="font-medium text-center">No matching assignments</span>
-                <div className="text-xs mt-2 flex flex-wrap items-center justify-center gap-1 max-w-full px-2">
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-muted/40 rounded-full">
-                    <Filter className="h-3 w-3" />
-                    {selectedStudentFilters.size + selectedTagFilters.size + selectedDifficultyFilters.size + selectedActivityFilters.size}
-                    <span className="ml-0.5">active</span>
-                  </span>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="mt-3 h-7 text-xs"
-                  onClick={clearAllFilters}
-                >
-                  Clear filters
-                </Button>
-              </motion.div>
-            )}
-            
-            {/* Empty state - no filters active */}
-            {!areAssignmentsLoading && assignments.length === 0 && selectedMetaActivities.size > 0 && !hasActiveFilters && (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.2 }}
-                className="flex flex-col items-center p-6 text-sm text-muted-foreground border border-dashed rounded-md min-h-[200px] justify-center"
-              >
-                <div className="h-10 w-10 rounded-full bg-muted/30 flex items-center justify-center mb-2">
-                  <span className="text-lg">📋</span>
-                </div>
-                <span className="font-medium">No assignments in this column</span>
-                <p className="text-xs mt-1 text-muted-foreground">Move assignments here from other columns</p>
-              </motion.div>
-            )}
-            
-            {/* Select an activity state */}
-            {!areAssignmentsLoading && selectedMetaActivities.size === 0 && (
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3 }}
-                className="p-6 text-center text-sm text-muted-foreground border border-dashed rounded-md min-h-[200px] flex flex-col items-center justify-center"
-              >
-                <div className="h-12 w-12 rounded-full bg-muted/30 flex items-center justify-center mb-2">
-                  <span className="text-xl">👈</span>
-                </div>
-                <span className="font-medium">Select class activities</span>
-                <p className="text-xs mt-1">from the sidebar to view student assignments</p>
-              </motion.div>
-            )}
-          </>
+          )
         )}
-
-        {/* Bottom padding spacer to ensure content doesn't end flush with bottom */}
-        <div className="h-6"></div>
       </div>
     </div>
   );
