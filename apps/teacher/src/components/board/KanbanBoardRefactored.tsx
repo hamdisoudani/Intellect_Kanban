@@ -247,7 +247,7 @@ export function KanbanBoardRefactored({ boardId }: KanbanBoardProps) {
 
   const handleMetaActivityDetailManageStudents = (activity: any) => {
     closeMetaActivityDetail();
-    setTimeout(() => openManageStudents(activity._id), 200);
+    setTimeout(() => openManageStudents(activity), 200);
   };
 
   const handleActivityDeleted = (activityId: string) => {
@@ -431,7 +431,6 @@ export function KanbanBoardRefactored({ boardId }: KanbanBoardProps) {
         <ManageStudentsDialog
           isOpen={isManageStudentsOpen}
           onOpenChange={closeManageStudents}
-          activity={selectedActivity}
           classStudents={students}
           onStudentsUpdated={handleStudentsUpdated}
         />

@@ -2,12 +2,19 @@ import { create } from 'zustand';
 import { toast } from 'sonner';
 import { Assignment } from '@/utils/types/assignment';
 
+// Define a simple Student interface for the return type
+interface Student {
+  id: string;
+  name: string;
+}
+
 interface AssignmentsState {
   // State
   assignmentsByActivity: Record<string, Assignment[]>;
   isLoadingAssignments: Record<string, boolean>;
   isManageStudentsOpen: boolean;
   selectedActivityForStudents: string | null;
+  selectedActivityData: any | null; // Store the full activity data
   loadedActivities: Set<string>; // Track which activities have been loaded
   
   // Actions
@@ -17,8 +24,11 @@ interface AssignmentsState {
   addAssignments: (boardId: string, activityId: string, studentIds: string[]) => Promise<void>;
   removeAssignments: (boardId: string, activityId: string, studentIds: string[]) => Promise<void>;
   
+  // New function to get assigned students for an activity
+  getAssignedStudentsForActivity: (activityId: string) => Student[];
+  
   // UI Actions
-  openManageStudents: (activityId: string) => void;
+  openManageStudents: (activity: any) => void;
   closeManageStudents: () => void;
   
   // Socket update handler
@@ -34,7 +44,35 @@ export const useAssignmentsStore = create<AssignmentsState>((set, get) => ({
   isLoadingAssignments: {},
   isManageStudentsOpen: false,
   selectedActivityForStudents: null,
+  selectedActivityData: null,
   loadedActivities: new Set<string>(),
+  
+  // New function implementation
+  getAssignedStudentsForActivity: (activityId: string) => {
+    const { assignmentsByActivity } = get();
+    const assignments = assignmentsByActivity[activityId] || [];
+    
+    const students: Student[] = assignments.map(assignment => {
+      // Handle both string and object formats for studentId
+      if (typeof assignment.studentId === 'object' && assignment.studentId !== null) {
+        return {
+          id: assignment.studentId._id,
+          name: assignment.studentId.name
+        };
+      } else {
+        // If studentId is just a string, we can't get the name
+        return {
+          id: assignment.studentId as string,
+          name: 'Unknown Student' // This should rarely happen as we usually have the full student object
+        };
+      }
+    });
+    
+    // Log the result for debugging
+    console.log(`[AssignmentsStore] Assigned students for activity ${activityId}:`, students);
+    
+    return students;
+  },
   
   // Fetch assignments for a single activity
   fetchAssignmentsForActivity: async (boardId: string, activityId: string) => {
@@ -330,17 +368,20 @@ export const useAssignmentsStore = create<AssignmentsState>((set, get) => ({
   },
   
   // UI Actions
-  openManageStudents: (activityId: string) => {
+  openManageStudents: (activity: any) => {
+    console.log('[AssignmentsStore] Opening manage students dialog with activity:', activity);
     set({ 
       isManageStudentsOpen: true,
-      selectedActivityForStudents: activityId
+      selectedActivityForStudents: activity?._id || null,
+      selectedActivityData: activity
     });
   },
   
   closeManageStudents: () => {
     set({ 
       isManageStudentsOpen: false,
-      selectedActivityForStudents: null
+      selectedActivityForStudents: null,
+      selectedActivityData: null
     });
   },
   
@@ -400,6 +441,7 @@ export const useAssignmentsStore = create<AssignmentsState>((set, get) => ({
       isLoadingAssignments: {},
       isManageStudentsOpen: false,
       selectedActivityForStudents: null,
+      selectedActivityData: null,
       loadedActivities: new Set<string>()
     });
   }

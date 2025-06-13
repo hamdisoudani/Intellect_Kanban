@@ -12,6 +12,7 @@ import { Tag as TagType } from '@/types/tags';
 import { DifficultyLevel } from '@/types/activities';
 import { DifficultyBadge } from './DifficultyBadge';
 import { cn } from '@intellect-kanban/utils';
+import stc from 'string-to-color';
 
 interface KanbanActivityCardProps {
   item: any; // Can be an activity or an assignment
@@ -103,6 +104,9 @@ export function KanbanActivityCard({
     ? formatDistanceToNow(new Date(activity.createdAt), { addSuffix: true })
     : '';
 
+  const displayName = itemType === 'assignment' ? student?.name : activity.createdBy?.name;
+  const cardTitle = itemType === 'assignment' ? student?.name : activity.title;
+
   // Determine if the activity is assigned
   const hasAssignment = activity.assignedTo || (activity.assignedStudents && activity.assignedStudents.length > 0);
 
@@ -137,7 +141,11 @@ export function KanbanActivityCard({
   // Generate color from activity ID - with transparency
   const getBorderColor = () => {
     if (isMetaActivity) {
-      return 'rgb(99, 102, 241, 0.8)'; // Indigo color with transparency for meta activities
+      return 'rgb(99, 102, 241, 0.8)'; // Indigo for meta
+    }
+
+    if (itemType === 'assignment' && student?._id) {
+      return stc(student._id);
     }
     
     // Modern UI color palette with soft, professional colors
@@ -266,27 +274,30 @@ export function KanbanActivityCard({
       )}
       <Card
         className={cn(
-          "w-full rounded-lg cursor-pointer min-h-[90px] flex flex-col justify-between bg-card/80 backdrop-blur-sm",
-          "transition-all duration-200",
+          "w-full rounded-lg cursor-pointer flex flex-col justify-between bg-card/80 backdrop-blur-sm transition-all duration-200",
+          !isPendingDeletion && itemType !== 'assignment' && 'min-h-[90px]',
+          !isPendingDeletion && itemType === 'assignment' && 'min-h-[48px] py-1'
         )}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="px-3 py-2.5 flex flex-col h-full justify-between">
+        <div className={cn("px-3", itemType !== 'assignment' ? 'py-2.5' : 'py-1', "flex flex-col h-full justify-between")}>
           <div>
             <div className="flex justify-between items-start gap-2">
               <h4 className="font-semibold text-sm leading-tight pr-2 truncate">
-                {activity.title}
+                {cardTitle}
               </h4>
-              <Badge 
-                variant={activity.difficultyLevel === 'advanced' ? 'destructive' : 'outline'} 
-                className={cn(
-                  "absolute top-2.5 right-2.5 text-[10px] px-2 py-0.5 h-5 font-medium z-10",
-                  activity.difficultyLevel === 'advanced' ? 'bg-amber-500/90 hover:bg-amber-500 border-amber-500/90 text-white' : 'bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 border-blue-500/10'
-                )}
-              >
-                {activity.difficultyLevel === 'advanced' ? 'Advanced' : 'Developing'}
-              </Badge>
+              {itemType !== 'assignment' && (
+                <Badge 
+                  variant={activity.difficultyLevel === 'advanced' ? 'destructive' : 'outline'} 
+                  className={cn(
+                    "absolute top-2.5 right-2.5 text-[10px] px-2 py-0.5 h-5 font-medium z-10",
+                    activity.difficultyLevel === 'advanced' ? 'bg-amber-500/90 hover:bg-amber-500 border-amber-500/90 text-white' : 'bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 border-blue-500/10'
+                  )}
+                >
+                  {activity.difficultyLevel === 'advanced' ? 'Advanced' : 'Developing'}
+                </Badge>
+              )}
             </div>
             
             <div className="mt-2 flex items-center gap-1.5 flex-wrap">
@@ -324,22 +335,24 @@ export function KanbanActivityCard({
             </div>
           </div>
           
-          <div className="flex justify-between items-center mt-3">
-            <div className="flex items-center gap-2">
-              <Avatar className="h-5 w-5">
-                <AvatarFallback className="text-[9px] bg-muted-foreground/20">
-                  {getInitials(activity.createdBy.name)}
-                </AvatarFallback>
-              </Avatar>
-              
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <CalendarIcon className="h-3 w-3" />
-                <span>{formattedDate}</span>
+          {itemType !== 'assignment' && (
+            <div className="flex justify-between items-center mt-3">
+              <div className="flex items-center gap-2">
+                <Avatar className="h-5 w-5">
+                  <AvatarFallback className="text-[9px] bg-muted-foreground/20">
+                    {getInitials(displayName)}
+                  </AvatarFallback>
+                </Avatar>
+                
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <CalendarIcon className="h-3 w-3" />
+                  <span>{formattedDate}</span>
+                </div>
               </div>
-            </div>
 
-            <span className="text-xs text-muted-foreground">{timeAgo}</span>
-          </div>
+              <span className="text-xs text-muted-foreground">{timeAgo}</span>
+            </div>
+          )}
         </div>
       </Card>
     </motion.div>

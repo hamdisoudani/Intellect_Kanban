@@ -38,9 +38,19 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       }
       
       const boardData = await response.json();
+      
+      // Normalize student data structure - ensure each student has _id property
+      const normalizedStudents = boardData.students?.map((student: any) => ({
+        _id: student._id || student.id, // Use _id if exists, otherwise use id
+        name: student.name,
+        email: student.email
+      })) || [];
+      
+      console.log('[boardStore] Normalized students:', normalizedStudents);
+      
       set({ 
         board: boardData,
-        students: boardData.students || [],
+        students: normalizedStudents,
         isLoading: false 
       });
       

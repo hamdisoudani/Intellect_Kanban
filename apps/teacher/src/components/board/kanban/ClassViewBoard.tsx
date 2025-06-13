@@ -11,6 +11,7 @@ import { motion } from 'framer-motion';
 import { BoardLevelFilterBar } from './BoardLevelFilterBar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@intellect-kanban/ui';
 import { AdvancedFilterPanel } from './AdvancedFilterPanel';
+import { useAssignmentsStore } from '@/store/assignmentsStore';
 
 interface ClassViewBoardProps {
   columns: Array<{ id: string; name: string; order?: number }>;
@@ -117,6 +118,9 @@ export function ClassViewBoard({
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   
+  // Get the getAssignedStudentsForActivity function from the assignments store
+  const getAssignedStudentsForActivity = useAssignmentsStore(state => state.getAssignedStudentsForActivity);
+  
   const applyFilters = () => {
     setSelectedStudentFilters(new Set(tempStudentFilters));
     setSelectedTagFilters(new Set(tempTagFilters));
@@ -220,8 +224,12 @@ export function ClassViewBoard({
     if (currentMetaActivity && assignments[currentMetaActivity._id]) {
       console.log(`[ClassViewBoard] Assignments updated for activity ${currentMetaActivity._id}:`, 
         assignments[currentMetaActivity._id].length);
+      
+      // Get and log assigned students using the new function
+      const assignedStudents = getAssignedStudentsForActivity(currentMetaActivity._id);
+      console.log(`[ClassViewBoard] Assigned students for current activity:`, assignedStudents);
     }
-  }, [assignments, currentMetaActivity]);
+  }, [assignments, currentMetaActivity, getAssignedStudentsForActivity]);
 
   // 2. Derive available filter options from the current board's content
   const onBoardStudentOptions = useMemo(() => {
