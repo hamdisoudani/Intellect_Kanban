@@ -19,8 +19,6 @@ interface MetaActivitiesColumnProps {
   setSearchQuery: (query: string) => void;
   toggleMetaActivitySelection: (activityId: string) => Promise<void>;
   selectAllMetaActivities: () => Promise<void>;
-  handleManageStudents: (activity: any) => void;
-  onViewDetails: (activity: any) => void;
   onCollapseColumn?: () => void; // New prop for collapsing the column
   
   // Filter props
@@ -62,6 +60,8 @@ interface MetaActivitiesColumnProps {
   expandAllActivities?: () => void;
   hideHeader?: boolean;
   hideFilterButton?: boolean;
+  applyFilters: () => void;
+  clearFilters: () => void;
 }
 
 export function MetaActivitiesColumn({
@@ -74,8 +74,6 @@ export function MetaActivitiesColumn({
   setSearchQuery,
   toggleMetaActivitySelection,
   selectAllMetaActivities,
-  handleManageStudents,
-  onViewDetails,
   onCollapseColumn,
   
   // Filter props
@@ -117,6 +115,8 @@ export function MetaActivitiesColumn({
   expandAllActivities,
   hideHeader = false,
   hideFilterButton = false,
+  applyFilters,
+  clearFilters,
 }: MetaActivitiesColumnProps) {
   const [showSearch, setShowSearch] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -141,28 +141,9 @@ export function MetaActivitiesColumn({
   
   // Check if all activities are collapsed
   const areAllCollapsed = () => {
-    if (!collapsedActivities || !activities || activities.length === 0) return false;
-    return activities.every(activity => collapsedActivities.has(activity._id));
+    return collapsedActivities && activities.every(a => collapsedActivities.has(a._id));
   };
   
-  // Filter panel functionality
-  const applyFilters = () => {
-    // Apply all filters at once
-    setSelectedStudentFilters(new Set(tempStudentFilters));
-    setSelectedTagFilters(new Set(tempTagFilters));
-    setSelectedDifficultyFilters(new Set(tempDifficultyFilters));
-    setSelectedActivityFilters(new Set(tempActivityFilters));
-    setIsStudentFilterOpen(false);
-  };
-  
-  const clearFilters = () => {
-    // Reset all temporary filters
-    setTempStudentFilters(new Set());
-    setTempTagFilters(new Set());
-    setTempDifficultyFilters(new Set());
-    setTempActivityFilters(new Set());
-  };
-
   // Calculate active filter count
   const activeFilterCount = selectedStudentFilters.size + selectedTagFilters.size + selectedDifficultyFilters.size;
   
@@ -315,8 +296,6 @@ export function MetaActivitiesColumn({
               isLoading={isLoadingAssignments[activity._id] || false}
               isPendingDeletion={activity._id === deletingActivityId}
               onSelect={() => toggleMetaActivitySelection(activity._id)}
-              onManageStudents={() => handleManageStudents(activity)}
-              onViewDetails={() => onViewDetails(activity)}
                 />
             ))
           ) : (

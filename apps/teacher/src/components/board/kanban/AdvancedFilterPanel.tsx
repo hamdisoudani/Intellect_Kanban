@@ -118,7 +118,7 @@ export function AdvancedFilterPanel({
           <span className="sr-only">Advanced filters</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" side="bottom" className="w-[350px] p-0 border-none shadow-lg rounded-lg" sideOffset={5}>
+      <DropdownMenuContent align="start" side="bottom" className="w-[90vw] max-w-[350px] p-0 border-none shadow-lg rounded-lg" sideOffset={5}>
         <motion.div 
           initial={{ opacity: 0, y: -5 }}
           animate={{ opacity: 1, y: 0 }}

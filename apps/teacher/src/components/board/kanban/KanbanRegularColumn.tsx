@@ -2,9 +2,10 @@
 
 import { useState, useMemo } from 'react';
 import { Button, Badge } from '@intellect-kanban/ui';
-import { Filter, X, UsersIcon, TagIcon, AlertCircle, ChevronUp, ChevronDown, Layers } from 'lucide-react';
+import { Filter, X, UsersIcon, TagIcon, AlertCircle, ChevronUp, ChevronDown, Layers, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { KanbanActivityCard } from '../KanbanActivityCard';
+import { Skeleton } from '@intellect-kanban/ui';
 
 interface KanbanRegularColumnProps {
   column: { id: string; name: string; order?: number };
@@ -19,6 +20,7 @@ interface KanbanRegularColumnProps {
   handleOpenDetail: (item: any) => void;
   deletingItemId: string | null;
   onAddItem?: (columnId: string) => void;
+  hideActivityTitle?: boolean;
 
   // Class view specific props
   allAssignments?: any[];
@@ -45,6 +47,7 @@ export function KanbanRegularColumn({
   handleOpenDetail,
   deletingItemId,
   onAddItem,
+  hideActivityTitle = false,
   
   // Class view specific props
   allAssignments = [],
@@ -69,41 +72,21 @@ export function KanbanRegularColumn({
   };
   
   return (
-    <div 
-      className={`flex flex-col h-full border rounded-lg overflow-hidden bg-card shadow-sm w-full ${
-        itemType === 'activity' 
-          ? '' 
-          : isMetaColumnCollapsed 
-            ? 'flex-1' 
-            : ''
-      }`}
-      onDragOver={(e) => handleDragOver(e, column.id)}
-      onDrop={(e) => handleDrop(e, column.id)}
-      style={{ minWidth: 0 }}
-    >
-      {/* Column Header - more responsive version */}
-      <div className="p-2 border-b bg-muted/30 flex flex-wrap items-center justify-between gap-1 min-h-[48px]">
-        <div className="flex items-center flex-wrap gap-1 min-w-0 max-w-full pr-1">
-          <span className="font-medium truncate">{column.name}</span>
-          <Badge variant="outline" className="text-xs bg-muted px-2 py-0.5 rounded-full flex-shrink-0">
-            {getColumnBadgeCount()}
+    <div className="flex flex-col h-full bg-card border rounded-lg overflow-hidden">
+      {/* Column Header */}
+      <div className="p-2 sm:p-3 border-b bg-muted/30 flex items-center justify-between sticky top-0 z-10">
+        <div className="flex items-center gap-1.5">
+          <span className="font-medium text-sm">{column.name}</span>
+          <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-muted/40">
+            {items.length}
           </Badge>
           
-          {/* Show filtered vs total count when filters are active in class view */}
-          {itemType === 'assignment' && hasActiveFilters && (
-            <span className="text-xs text-muted-foreground flex-shrink-0">
-              {items.length}/{allAssignments.length}
-            </span>
-          )}
-        </div>
-        
-        <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
           {/* Filter badges in class view */}
           {itemType === 'assignment' && hasActiveFilters && (
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="flex items-center gap-1"
+              className="flex items-center gap-1 ml-1"
             >
               {/* Compact filter indicator that shows total count instead of individual badges */}
               <Badge variant="outline" className="bg-muted/30 px-1.5 h-5 text-[10px] flex items-center gap-1" title="Active filters">
@@ -123,50 +106,65 @@ export function KanbanRegularColumn({
               </Button>
             </motion.div>
           )}
+        </div>
           
           {/* Add activity button in personal view */}
           {itemType === 'activity' && onAddItem && (
-            <button 
-              className="text-xs text-muted-foreground hover:text-foreground p-1 rounded flex-shrink-0"
+          <Button 
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 rounded-full flex-shrink-0"
               onClick={() => onAddItem(column.id)}
             >
-              +
-            </button>
+            <Plus className="h-3.5 w-3.5" />
+            <span className="sr-only">Add activity</span>
+          </Button>
           )}
-        </div>
       </div>
 
       {/* Column Content */}
-      <div className="flex-1 p-2 pb-6 overflow-y-auto w-full" style={{ maxHeight: 'calc(100vh - 180px)' }}>
-        {/* Loading Skeletons */}
+      <div className="flex-1 overflow-y-auto p-1.5 sm:p-2 space-y-2 min-h-[100px]">
+        {/* Loading skeleton */}
         {isLoading && (
-          Array(3).fill(0).map((_, index) => (
-            <div key={`skeleton-${index}`} className="rounded-md border p-2 animate-pulse mb-3">
-              <div className="h-4 w-3/4 bg-muted-foreground/20 rounded mb-2"></div>
-              <div className="flex justify-between items-center">
-                <div className="h-3 w-1/4 bg-muted-foreground/15 rounded"></div>
-                <div className="h-3 w-1/6 bg-muted-foreground/15 rounded"></div>
-              </div>
+          <div className="space-y-2">
+            {Array(3).fill(0).map((_, i) => (
+              <Skeleton key={i} className="h-20 w-full" />
+            ))}
             </div>
-          ))
         )}
         
         {/* Render activities */}
-        {!isLoading && itemType === 'activity' && items.map((item) => (
+        {!isLoading && itemType === 'activity' && (
+          items.length > 0 ? (
+            items.map(activity => (
             <KanbanActivityCard 
-            key={item._id}
-            item={item}
+                key={activity._id}
+                item={activity}
             itemType="activity"
+                columnId={column.id}
             onClick={handleOpenDetail}
-            isPendingDeletion={deletingItemId === item._id}
-            isMetaActivity={item.type === 'meta'}
+                isPendingDeletion={deletingItemId === activity._id}
+                hideActivityTitle={false}
             onDragStart={(e, draggedItem) => {
-              if (draggedItem.type === 'meta') return;
               handleDragStart(draggedItem._id, column.id);
               e.dataTransfer.setData('text/plain', draggedItem._id);
               }}
             />
-        ))}
+            ))
+          ) : (
+            <div className="flex flex-col items-center justify-center h-28 text-center p-3 border border-dashed border-border/50 rounded-lg bg-muted/5">
+              <div className="text-muted-foreground text-xs mb-2">No activities</div>
+              {onAddItem && (
+                <button 
+                  onClick={() => onAddItem(column.id)} 
+                  className="text-xs bg-primary/10 hover:bg-primary/20 text-primary rounded-md px-2.5 py-1 transition-colors"
+                >
+                  Add activity
+                </button>
+              )}
+            </div>
+          )
+        )}
         
         {/* Render assignments */}
         {!isLoading && itemType === 'assignment' && (
@@ -176,8 +174,10 @@ export function KanbanRegularColumn({
                             key={assignment._id} 
                 item={assignment}
                 itemType="assignment"
+                columnId={column.id}
                 onClick={handleOpenDetail}
                 isPendingDeletion={deletingItemId === assignment._id}
+                hideActivityTitle={hideActivityTitle}
                 onDragStart={(e, draggedItem) => {
                   handleDragStart(draggedItem._id, column.id);
                   e.dataTransfer.setData('text/plain', draggedItem._id);
@@ -185,8 +185,25 @@ export function KanbanRegularColumn({
               />
             ))
           ) : (
-            <div className="flex items-center justify-center h-full text-xs text-muted-foreground p-4 text-center">
-              {hasActiveFilters ? "No assignments match filters" : "No assignments in this column"}
+            <div className="flex flex-col items-center justify-center h-28 text-center p-3 border border-dashed border-border/50 rounded-lg bg-muted/5">
+              <div className="text-muted-foreground text-xs mb-1">
+                {hasActiveFilters ? (
+                  <>
+                    <span className="font-medium text-primary">Filtered view:</span> No matching assignments
+                  </>
+                ) : (
+                  <>
+                    No assignments in <span className="font-medium">{column.name}</span>
+                  </>
+                )}
+              </div>
+              <div className="text-[10px] text-muted-foreground mt-1">
+                {hasActiveFilters ? (
+                  <>Try adjusting your filters</>
+                ) : (
+                  <>Drag assignments here to update their status</>
+                )}
+              </div>
                 </div>
           )
         )}

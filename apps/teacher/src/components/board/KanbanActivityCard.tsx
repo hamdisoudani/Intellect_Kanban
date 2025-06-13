@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, CardContent, Avatar, Badge, AvatarFallback, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@intellect-kanban/ui';
+import { Card, CardContent, Avatar, Badge, AvatarFallback, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@intellect-kanban/ui';
 import { PriorityBadge } from './PriorityBadge';
 import { useMemo, useEffect, useState } from 'react';
 import { CalendarIcon, Users, MessageSquare, Clock, CheckCircle2, AlertCircle, Tag as TagIcon } from 'lucide-react';
@@ -249,134 +249,98 @@ export function KanbanActivityCard({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      transition={{ duration: 0.2 }}
-      whileHover={{ scale: isPendingDeletion ? 1 : 1.01, y: -1 }}
-      whileTap={{ scale: isPendingDeletion ? 1 : 0.98 }}
-      className="mb-3 relative" 
+      transition={{ duration: 0.2, delay: 0.05 }}
+      whileHover={{ scale: 1.03, transition: { duration: 0.15 } }}
+      className={cn(
+        "relative rounded-lg overflow-hidden shadow-sm border-l-4",
+        isPendingDeletion && "opacity-50 pointer-events-none"
+      )}
+      style={{ borderColor: getBorderColor() }}
+      draggable={!isMetaActivity}
+      onClick={handleClick}
     >
-      {/* Pending deletion overlay */}
       {isPendingDeletion && (
-        <div className="absolute inset-0 bg-background/50 backdrop-blur-sm z-10 flex items-center justify-center rounded-lg border border-destructive animate-pulse">
-          <div className="flex flex-col items-center gap-2">
-            <svg className="animate-spin h-6 w-6 text-destructive" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <p className="text-xs font-medium text-destructive">Deleting...</p>
-          </div>
+        <div className="absolute inset-0 bg-background/50 backdrop-blur-sm z-10 flex items-center justify-center">
+            <div className="h-4 w-4 rounded-full border-2 border-destructive border-t-transparent animate-spin"></div>
         </div>
       )}
-
       <Card
-        onClick={handleClick}
-        draggable={!isMetaActivity}
+        className={cn(
+          "w-full rounded-lg cursor-pointer min-h-[90px] flex flex-col justify-between bg-card/80 backdrop-blur-sm",
+          "transition-all duration-200",
+        )}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
-        className={cn(
-          'w-full cursor-pointer transition-all duration-200 ease-in-out hover:shadow-lg dark:hover:shadow-primary/10 group',
-          'bg-background/80 dark:bg-zinc-900/50 border-l-4 rounded-lg',
-          isPendingDeletion && 'opacity-50 cursor-not-allowed',
-        )}
-        style={{ borderLeftColor: getBorderColor() }}
       >
-        <CardContent className="p-0 flex flex-col h-full">
-          {/* Main Content */}
-          <div className="p-4">
+        <div className="px-3 py-2.5 flex flex-col h-full justify-between">
+          <div>
             <div className="flex justify-between items-start gap-2">
-              {/* Title - Only show for activities, not for assignments */}
-              {itemType === 'activity' && (
-                <h3 className="font-semibold text-sm leading-tight pr-2 flex-1 break-words">
-                  {activity?.title || 'Untitled Activity'}
-                </h3>
-              )}
-
-              {/* Badges for priority or difficulty */}
-              <div className="flex-shrink-0">
-                {activity?.difficultyLevel && (
-                  <DifficultyBadge difficultyLevel={activity.difficultyLevel as DifficultyLevel} />
+              <h4 className="font-semibold text-sm leading-tight pr-2 truncate">
+                {activity.title}
+              </h4>
+              <Badge 
+                variant={activity.difficultyLevel === 'advanced' ? 'destructive' : 'outline'} 
+                className={cn(
+                  "absolute top-2.5 right-2.5 text-[10px] px-2 py-0.5 h-5 font-medium z-10",
+                  activity.difficultyLevel === 'advanced' ? 'bg-amber-500/90 hover:bg-amber-500 border-amber-500/90 text-white' : 'bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 border-blue-500/10'
                 )}
-                {activity?.priority && (
-                  <PriorityBadge priority={activity.priority} />
-                )}
+              >
+                {activity.difficultyLevel === 'advanced' ? 'Advanced' : 'Developing'}
+              </Badge>
+            </div>
+            
+            <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+              {displayTags.length > 0 ? (
+                <>
+                  {displayTags.map(tag => (
+                    <Tag key={tag._id} label={tag.name} color={tag.color} size="sm" />
+                  ))}
+                  {remainingCount > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Badge
+                          variant="secondary"
+                          className="ml-1 text-xs px-1.5 py-0 h-5 rounded-full cursor-pointer hover:bg-secondary/80 flex-shrink-0"
+                        >
+                          +{remainingCount}
+                        </Badge>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {resolvedTags.slice(3).map(tag => (
+                          <DropdownMenuItem key={tag._id} className="px-2 py-1 text-xs">
+                            <Tag
+                              label={tag.name}
+                              color={tag.color}
+                              size="sm"
+                              className="py-0.5 px-1.5 text-xs w-full"
+                            />
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </>
+              ) : null}
+            </div>
+          </div>
+          
+          <div className="flex justify-between items-center mt-3">
+            <div className="flex items-center gap-2">
+              <Avatar className="h-5 w-5">
+                <AvatarFallback className="text-[9px] bg-muted-foreground/20">
+                  {getInitials(activity.createdBy.name)}
+                </AvatarFallback>
+              </Avatar>
+              
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <CalendarIcon className="h-3 w-3" />
+                <span>{formattedDate}</span>
               </div>
             </div>
 
-            {/* Student Info for Assignments */}
-            {itemType === 'assignment' && student && (
-              <div className="flex items-center gap-2">
-                <Avatar className="h-6 w-6">
-                  <AvatarFallback className="text-[10px] font-semibold bg-muted">
-                    {getInitials(student.name)}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="text-sm font-medium">{student.name}</span>
-              </div>
-            )}
-
-            {/* Tags */}
-            {displayTags.length > 0 && (
-              <div className="mt-4 flex flex-wrap items-center gap-1.5">
-                <div className={cn("flex-shrink-0 rounded-full h-5 w-5 flex items-center justify-center", statusInfo.bgColor)}>
-                  <TagIcon className={cn("h-3 w-3", statusInfo.color)} />
-                </div>
-                {displayTags.map((tag: TagType) => (
-                  <Tag key={tag._id} label={tag.name} color={tag.color} size="sm" />
-                ))}
-                {remainingCount > 0 && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <Badge variant="secondary" className="text-xs font-light px-2 py-0.5 h-5 rounded-md">
-                          +{remainingCount}
-                        </Badge>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>...and {remainingCount} more tags</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-              </div>
-            )}
-
-            {/* Footer - Only show for activities, not for assignments */}
-            {itemType === 'activity' && (
-              <div className="flex justify-between items-center mt-4 pt-3 border-t border-border/50">
-                <div className="flex items-center gap-3 text-muted-foreground">
-                  {/* Creator Avatar */}
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <Avatar className="h-6 w-6">
-                          <AvatarFallback className="text-[10px] font-bold bg-muted">
-                            {activity?.creator?.name ? getInitials(activity.creator.name) : 'A'}
-                          </AvatarFallback>
-                        </Avatar>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Created by {activity?.creator?.name || 'Admin'}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-
-                  {/* Due Date */}
-                  {formattedDate && (
-                    <div className="flex items-center gap-1.5 text-xs">
-                      <CalendarIcon className="h-3.5 w-3.5" />
-                      <span>{formattedDate}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Time Ago */}
-                <div className="text-xs text-muted-foreground italic">
-                  {timeAgo}
-                </div>
-              </div>
-            )}
+            <span className="text-xs text-muted-foreground">{timeAgo}</span>
           </div>
-        </CardContent>
+        </div>
       </Card>
     </motion.div>
   );

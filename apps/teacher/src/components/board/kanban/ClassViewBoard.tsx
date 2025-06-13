@@ -3,13 +3,14 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { KanbanView as PersonalViewBoard } from './PersonalViewBoard';
 import { MetaActivitiesColumn } from './MetaActivitiesColumn';
-import { BoardLevelMetaActivities } from './BoardLevelMetaActivities';
 import { DifficultyLevel } from '@/types/activities';
 import { Tag as TagType } from '@/types/tags';
-import { ChevronLeft, ChevronRight, ArrowLeft, ArrowRight, Layers, X, Filter, Search } from 'lucide-react';
-import { Button, Badge } from '@intellect-kanban/ui';
-import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronLeft, ChevronRight, Layers, X, Filter, Search, Info, Users } from 'lucide-react';
+import { Button } from '@intellect-kanban/ui';
+import { motion } from 'framer-motion';
 import { BoardLevelFilterBar } from './BoardLevelFilterBar';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@intellect-kanban/ui';
+import { AdvancedFilterPanel } from './AdvancedFilterPanel';
 
 interface ClassViewBoardProps {
   columns: Array<{ id: string; name: string; order?: number }>;
@@ -30,6 +31,12 @@ interface ClassViewBoardProps {
   assignments: Record<string, any[]>;
   isLoadingAssignments: Record<string, boolean>;
   isLoadingActivities: boolean;
+  toggleMetaActivitySelection: (activityId: string) => Promise<void>;
+  selectAllMetaActivities: () => Promise<void>;
+  onViewDetails: (activity: any) => void;
+  onManageStudents: (activity: any) => void;
+  metaActivitySearchQuery: string;
+  setMetaActivitySearchQuery: (query: string) => void;
   
   // Filter related props
   isStudentFilterOpen: boolean;
@@ -57,14 +64,6 @@ interface ClassViewBoardProps {
   uniqueStudents: { _id: string; name: string }[];
   uniqueTags: TagType[];
   uniqueDifficultyLevels: { level: DifficultyLevel, label: string, color: string }[];
-  
-  // New props for MetaActivitiesColumn
-  toggleMetaActivitySelection: (activityId: string) => Promise<void>;
-  selectAllMetaActivities: () => Promise<void>;
-  handleManageStudents: (activity: any) => void;
-  onViewDetails: (activity: any) => void;
-  metaActivitySearchQuery: string;
-  setMetaActivitySearchQuery: (query: string) => void;
 }
 
 export function ClassViewBoard({
@@ -84,8 +83,8 @@ export function ClassViewBoard({
   isLoadingActivities,
   toggleMetaActivitySelection,
   selectAllMetaActivities,
-  handleManageStudents,
   onViewDetails,
+  onManageStudents,
   metaActivitySearchQuery,
   setMetaActivitySearchQuery,
   
@@ -117,6 +116,19 @@ export function ClassViewBoard({
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  
+  const applyFilters = () => {
+    setSelectedStudentFilters(new Set(tempStudentFilters));
+    setSelectedTagFilters(new Set(tempTagFilters));
+    setSelectedDifficultyFilters(new Set(tempDifficultyFilters));
+    setIsStudentFilterOpen(false);
+  };
+
+  const clearFilters = () => {
+    setTempStudentFilters(new Set());
+    setTempTagFilters(new Set());
+    setTempDifficultyFilters(new Set());
+  };
   
   // Auto-collapse sidebar on small screens
   useEffect(() => {
@@ -252,7 +264,7 @@ export function ClassViewBoard({
       }
     });
     return assignmentsByColumn;
-  }, [currentMetaActivity, allCurrentBoardAssignments, columns, metaActivities, onBoardSelectedStudents]);
+  }, [currentMetaActivity, allCurrentBoardAssignments, columns, onBoardSelectedStudents]);
   
   const isLoadingCurrentAssignments = useMemo(() => {
       if (!currentMetaActivity) return false;
@@ -353,14 +365,34 @@ export function ClassViewBoard({
                           </Button>
                         )}
                         {/* Filter button */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 p-0"
-                          onClick={() => setIsStudentFilterOpen(true)}
-                        >
-                          <Filter className="h-4 w-4" />
-                        </Button>
+                        <AdvancedFilterPanel
+                          isOpen={isStudentFilterOpen}
+                          onOpenChange={setIsStudentFilterOpen}
+                          selectedStudentFilters={selectedStudentFilters}
+                          tempStudentFilters={tempStudentFilters}
+                          setTempStudentFilters={setTempStudentFilters}
+                          selectedTagFilters={selectedTagFilters}
+                          tempTagFilters={tempTagFilters}
+                          setTempTagFilters={setTempTagFilters}
+                          selectedDifficultyFilters={selectedDifficultyFilters}
+                          tempDifficultyFilters={tempDifficultyFilters}
+                          setTempDifficultyFilters={setTempDifficultyFilters}
+                          uniqueStudents={uniqueStudents}
+                          uniqueTags={uniqueTags}
+                          uniqueDifficultyLevels={uniqueDifficultyLevels}
+                          activeFilterTab={activeFilterTab}
+                          setActiveFilterTab={setActiveFilterTab}
+                          tagSearchQuery={tagSearchQuery}
+                          setTagSearchQuery={setTagSearchQuery}
+                          studentSearchQuery={studentSearchQuery}
+                          setStudentSearchQuery={setStudentSearchQuery}
+                          selectAllMetaActivities={selectAllMetaActivities}
+                          toggleMetaActivitySelection={toggleMetaActivitySelection}
+                          applyFilters={applyFilters}
+                          clearFilters={clearFilters}
+                          metaActivities={metaActivities}
+                          selectedMetaActivities={selectedMetaActivities}
+                        />
                         {/* Close button */}
                         <Button 
                           variant="ghost" 
@@ -383,8 +415,6 @@ export function ClassViewBoard({
                   setSearchQuery={setMetaActivitySearchQuery}
                   toggleMetaActivitySelection={toggleMetaActivitySelection}
                   selectAllMetaActivities={selectAllMetaActivities}
-                  handleManageStudents={handleManageStudents}
-                  onViewDetails={onViewDetails}
                   onCollapseColumn={() => setIsSidebarCollapsed(true)}
                   // Pass all filter props directly
                   isStudentFilterOpen={isStudentFilterOpen}
@@ -412,6 +442,8 @@ export function ClassViewBoard({
                   uniqueDifficultyLevels={uniqueDifficultyLevels}
                   hideHeader={isMobile}
                   hideFilterButton={isMobile}
+                  applyFilters={applyFilters}
+                  clearFilters={clearFilters}
                 />
               </div>
             )}
@@ -443,7 +475,7 @@ export function ClassViewBoard({
                 <>
                     {/* Board header with meta activity name, pagination, and filter */}
                     {selectedMetaActivityIds.length > 0 && currentMetaActivity && (
-                        <div className="flex items-center justify-between gap-2 px-4 py-3 border-b relative">
+                        <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2 sm:py-3 border-b bg-background/80 backdrop-blur-sm sticky top-0 z-10">
                             {/* Mobile-only button to open sidebar - positioned absolutely */}
                             {isMobile && isSidebarCollapsed && (
                                 <Button 
@@ -455,24 +487,8 @@ export function ClassViewBoard({
                                     <ChevronRight className="h-4 w-4" />
                                 </Button>
                             )}
-                            
-                            <div className={`flex items-center gap-2 flex-1 min-w-0 ${isMobile && isSidebarCollapsed ? 'pl-8' : ''}`}>
-                                <h3 
-                                    className="text-lg font-semibold truncate" 
-                                    title={currentMetaActivity.title}
-                                >
-                                    {currentMetaActivity.title}
-                                </h3>
-                                {currentMetaActivity.description && (
-                                    <span className="text-xs text-muted-foreground hidden sm:inline">
-                                        {currentMetaActivity.description}
-                                    </span>
-                                )}
-                            </div>
-                            
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                                {/* Pagination controls */}
-                                <div className="flex items-center gap-1 bg-muted/30 rounded-md border px-1.5 py-0.5">
+                            <div className={`flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0 ${isMobile && isSidebarCollapsed ? 'pl-8' : ''}`}> 
+                                {/* Previous arrow */}
                                     <Button
                                         variant="ghost"
                                         size="icon"
@@ -483,13 +499,14 @@ export function ClassViewBoard({
                                         <ChevronLeft className="h-4 w-4" />
                                         <span className="sr-only">Previous</span>
                                     </Button>
-                                    
-                                    <span className="text-xs px-1">
-                                        {selectedMetaActivityIds.length > 0 ? 
-                                            `${currentMetaActivityIndex + 1} of ${selectedMetaActivityIds.length}` : 
-                                            '0 of 0'}
-                                    </span>
-                                    
+                                {/* Title */}
+                                <h3 
+                                    className="text-base sm:text-lg font-semibold truncate mx-1"
+                                    title={currentMetaActivity.title}
+                                >
+                                    {currentMetaActivity.title}
+                                </h3>
+                                {/* Next arrow */}
                                     <Button
                                         variant="ghost"
                                         size="icon"
@@ -500,9 +517,22 @@ export function ClassViewBoard({
                                         <ChevronRight className="h-4 w-4" />
                                         <span className="sr-only">Next</span>
                                     </Button>
+                                {/* Description tooltip */}
+                                {currentMetaActivity.description && (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Info className="h-4 w-4 text-muted-foreground ml-1 hidden sm:block" />
+                                        </TooltipTrigger>
+                                        <TooltipContent side="bottom">
+                                          {currentMetaActivity.description}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                )}
                                 </div>
-                                
-                                {/* Board-level filter button */}
+                            {/* Board-level filter button and actions */}
+                            <div className="flex items-center gap-1">
                                 <BoardLevelFilterBar
                                     studentOptions={onBoardStudentOptions}
                                     selectedStudents={onBoardSelectedStudents}
@@ -510,6 +540,22 @@ export function ClassViewBoard({
                                     onClearFilters={clearOnBoardFilters}
                                     compact={true}
                                 />
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => onViewDetails(currentMetaActivity)}
+                                >
+                                  <Info className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => onManageStudents(currentMetaActivity)}
+                                >
+                                  <Users className="h-4 w-4" />
+                                </Button>
                             </div>
                         </div>
                     )}
@@ -528,7 +574,7 @@ export function ClassViewBoard({
                             items={currentAssignments}
                             itemType="assignment"
                             isLoading={isLoadingCurrentAssignments}
-                            className="px-2 sm:px-0"
+                            className="p-0 sm:p-4"
                         />
                     </div>
                 </>

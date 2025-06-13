@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
   Button,
   Avatar,
@@ -14,15 +13,12 @@ import {
   Checkbox,
   ScrollArea,
   Badge,
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-  Alert,
+  Input,
 } from '@intellect-kanban/ui';
-import { Search, UserPlus, X, Users, AlertCircle, Loader2, CheckCircle } from 'lucide-react';
+import { Search, Users, UserPlus, Loader2, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { User } from '@/utils/types/classes';
+import { cn } from '@intellect-kanban/utils';
 
 interface ManageStudentsDialogProps {
   isOpen: boolean;
@@ -32,6 +28,33 @@ interface ManageStudentsDialogProps {
   onStudentsUpdated?: () => void;
 }
 
+interface StudentRowProps {
+    student: User;
+    isSelected: boolean;
+    onToggle: (id: string) => void;
+}
+
+const StudentRow = ({ student, isSelected, onToggle }: StudentRowProps) => (
+    <div
+      className={cn(
+        "flex items-center gap-3 p-2 rounded-md transition-colors cursor-pointer",
+        "hover:bg-muted/50",
+        isSelected && "bg-primary/10"
+      )}
+      onClick={() => onToggle(student._id)}
+    >
+      <Checkbox
+        checked={isSelected}
+        onCheckedChange={() => onToggle(student._id)}
+        aria-label={`Select ${student.name}`}
+      />
+      <Avatar className="h-8 w-8">
+        <AvatarFallback>{student.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+      </Avatar>
+      <span className="font-medium">{student.name}</span>
+    </div>
+  );
+
 export function ManageStudentsDialog({
   isOpen,
   onOpenChange,
@@ -40,123 +63,68 @@ export function ManageStudentsDialog({
   onStudentsUpdated
 }: ManageStudentsDialogProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
-  const [initialStudents, setInitialStudents] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Initialize selected students from activity
-  useEffect(() => {
-    if (activity && activity.assignedStudents) {
-      // Convert to array of IDs if not already
-      const studentIds = activity.assignedStudents.map((student: any) => 
-        typeof student === 'object' ? getStudentId(student) : student
-      );
-      setSelectedStudents(studentIds);
-      setInitialStudents(studentIds);
-      // Clear any previous error message
-      setErrorMessage(null);
-    } else {
-      setSelectedStudents([]);
-      setInitialStudents([]);
-    }
-  }, [activity]);
+  const { initialStudentIds, unassignedStudents } = useMemo(() => {
+    const initialIds = new Set(
+      activity?.assignedStudents?.map((student: any) => student?._id || student) || []
+    );
+    const unassigned = classStudents.filter(s => !initialIds.has(s._id));
+    return { initialStudentIds: initialIds, unassignedStudents: unassigned };
+  }, [activity, classStudents]);
 
-  // Clear error message when dialog opens/closes
   useEffect(() => {
-    if (!isOpen) {
-      // Reset error when dialog closes
-      setErrorMessage(null);
+    if (isOpen) {
+      setSelectedStudentIds(new Set());
+      setSearchQuery('');
     }
   }, [isOpen]);
 
-  // Filter students based on search query
-  const filteredStudents = classStudents.filter(student => 
+  const filteredStudents = useMemo(() => {
+    if (!searchQuery) return unassignedStudents;
+    return unassignedStudents.filter(student =>
     student.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  }, [searchQuery, unassignedStudents]);
 
-  // Check if a student was already assigned when the dialog opened
-  const isInitiallyAssigned = (studentId: string) => {
-    return initialStudents.includes(studentId);
-  };
-
-  // Helper to get the student ID consistently
-  const getStudentId = (student: any) => {
-    return student.id || student._id;
-  };
-
-  // Helper to get the activity ID consistently
-  const getActivityId = (activity: any) => {
-    return activity.id || activity._id;
-  };
-
-  // Count only newly selected students (exclude initially assigned ones)
-  const newlySelectedCount = selectedStudents.filter(id => !initialStudents.includes(id)).length;
-
-  // Toggle student selection
-  const toggleStudent = (studentId: string) => {
-    // Don't allow deselecting initially assigned students
-    if (isInitiallyAssigned(studentId)) {
-      return;
-    }
-    
-    setSelectedStudents(prev => {
-      if (prev.includes(studentId)) {
-        return prev.filter(id => id !== studentId);
+  const handleToggleStudent = (studentId: string) => {
+    setSelectedStudentIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(studentId)) {
+        newSet.delete(studentId);
       } else {
-        return [...prev, studentId];
+        newSet.add(studentId);
       }
+      return newSet;
     });
   };
 
-  // Save changes
   const handleSave = async () => {
-    if (!activity) return;
+    if (!activity?._id || selectedStudentIds.size === 0) return;
     
-    const activityId = getActivityId(activity);
-    if (!activityId) return;
-    
-    // Reset any previous error
-    setErrorMessage(null);
     setIsSubmitting(true);
+    const allStudentIds = [...initialStudentIds, ...selectedStudentIds];
     
     try {
-      const response = await fetch(`/api/board/${activity.boardId}/activities/${activityId}/assign`, {
+      const response = await fetch(`/api/board/${activity.boardId}/activities/${activity._id}/assign`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ studentIds: selectedStudents }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentIds: allStudentIds }),
       });
       
       const data = await response.json();
       
       if (!response.ok) {
-        // Extract the specific error message from the response
-        let errorMsg = data.error || 'Failed to update assigned students';
-        
-        // Make MongoDB version conflict errors more user-friendly
-        if (errorMsg.includes("No matching document found for id") && errorMsg.includes("version")) {
-          errorMsg = "The activity was modified by someone else. Please refresh and try again.";
-        }
-        
-        setErrorMessage(errorMsg);
-        throw new Error(errorMsg);
+        throw new Error(data.error || 'Failed to update assigned students');
       }
       
-      // Success - show toast and close dialog
-      toast.success('Students assigned successfully', {
-        description: 'Refreshing assignments...'
-      });
+      toast.success(`${selectedStudentIds.size} student(s) assigned successfully.`);
       onStudentsUpdated?.();
       onOpenChange(false);
     } catch (error: any) {
       console.error('Error assigning students:', error);
-      // Display the specific error message
-      const errorMsg = error.message || 'Failed to update assigned students';
-      setErrorMessage(errorMsg);
-      toast.error(errorMsg);
+      toast.error(error.message || 'An unexpected error occurred.');
     } finally {
       setIsSubmitting(false);
     }
@@ -164,167 +132,92 @@ export function ManageStudentsDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-w-lg w-full flex flex-col h-[70vh]">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Manage Assigned Students
+          <DialogTitle className="flex items-center gap-2 text-xl">
+            <Users className="h-6 w-6" />
+            Manage Student Assignments
           </DialogTitle>
-          <DialogDescription>
-            {activity?.title && (
-              <span className="font-medium text-foreground">{activity.title}</span>
-            )}
-          </DialogDescription>
+          <p className="text-sm text-muted-foreground">
+            For activity: <span className="font-medium text-foreground">{activity?.title}</span>
+          </p>
         </DialogHeader>
         
-        {/* Search bar */}
-        <div className="relative mb-4">
-          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input
+        <div className="relative mt-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
             type="text"
-            placeholder="Search students..."
-            className="w-full pl-8 pr-4 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+            placeholder="Search unassigned students..."
+            className="w-full pl-9"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
         
-        {/* Students list */}
-        <div className="border rounded-md">
-          <div className="p-2 bg-muted/30 border-b flex items-center justify-between">
-            <span className="text-sm font-medium">Students</span>
-            <div className="flex items-center gap-2">
-              {newlySelectedCount > 0 && (
-                <Badge variant="outline" className="h-5 text-xs bg-primary/10 text-primary border-primary/20">
-                  +{newlySelectedCount} new
-                </Badge>
-              )}
-              <Badge variant="outline" className="h-5 text-xs">
-                {selectedStudents.length} total
+        <div className="flex-1 flex flex-col mt-4 border rounded-md overflow-hidden">
+          <div className="p-3 bg-muted/30 border-b">
+            <h3 className="text-base font-semibold">
+              Unassigned Students
+              <Badge variant="outline" className="ml-2">
+                {unassignedStudents.length}
               </Badge>
-            </div>
+            </h3>
           </div>
           
-          {/* Error message */}
-          {errorMessage && (
-            <div className="p-2 bg-red-50 border-b border-red-200 text-red-800 text-sm flex items-center gap-2">
-              <AlertCircle className="h-4 w-4" />
-              <span className="flex-1">{errorMessage}</span>
-              <button 
-                onClick={() => setErrorMessage(null)}
-                className="text-red-700 hover:text-red-900"
-              >
-                <X className="h-4 w-4" />
-                <span className="sr-only">Dismiss</span>
-              </button>
+          <div className="flex-1 overflow-hidden">
+          <ScrollArea className="h-full">
+            <div className="p-2">
+              {filteredStudents.length > 0 ? (
+                filteredStudents.map(student => (
+                  <StudentRow
+                    key={student._id}
+                    student={student}
+                    isSelected={selectedStudentIds.has(student._id)}
+                    onToggle={handleToggleStudent}
+                  />
+                ))
+              ) : (
+                <div className="text-center py-10 px-4">
+                  <p className="text-muted-foreground">No unassigned students found.</p>
+                </div>
+              )}
             </div>
-          )}
+          </ScrollArea>
+          </div>
+        </div>
           
-          {isLoading ? (
-            <div className="flex items-center justify-center p-8">
-              <Loader2 className="h-8 w-8 text-primary animate-spin" />
+        {initialStudentIds.size > 0 && (
+          <div className="mt-4 border rounded-md">
+            <div className="p-3 bg-muted/30 border-b">
+                <h3 className="text-base font-semibold">
+                  Already Assigned
+                  <Badge variant="outline" className="ml-2">
+                    {initialStudentIds.size}
+                  </Badge>
+                </h3>
             </div>
-          ) : classStudents.length === 0 ? (
-            <div className="flex flex-col items-center justify-center p-8 text-center">
-              <AlertCircle className="h-8 w-8 text-muted-foreground/50 mb-2" />
-              <p className="text-sm text-muted-foreground">No students available in this class</p>
+            <div className="p-4">
+              <p className="text-sm text-muted-foreground">
+                These students are already assigned. To unassign them, please do so from the main board.
+              </p>
             </div>
-          ) : (
-            <ScrollArea className="h-[300px]">
-              <div className="p-2 space-y-1">
-                {filteredStudents.map(student => {
-                  const studentId = getStudentId(student);
-                  const isAlreadyAssigned = isInitiallyAssigned(studentId);
-                  return (
-                    <div 
-                      key={studentId}
-                      className={`flex items-center justify-between p-2 rounded-md transition-colors ${
-                        isAlreadyAssigned 
-                          ? 'bg-muted/30' 
-                          : 'hover:bg-muted/40'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div key={`tooltip-trigger-${studentId}`}>
-                                <Checkbox 
-                                  id={`student-${studentId}`}
-                                  checked={selectedStudents.includes(studentId)}
-                                  onCheckedChange={() => toggleStudent(studentId)}
-                                  disabled={isAlreadyAssigned}
-                                  className={isAlreadyAssigned ? 'cursor-not-allowed' : ''}
-                                />
-                              </div>
-                            </TooltipTrigger>
-                            {isAlreadyAssigned && (
-                              <TooltipContent>
-                                <p className="text-xs">Already assigned</p>
-                              </TooltipContent>
-                            )}
-                          </Tooltip>
-                        </TooltipProvider>
-                        <Avatar className="h-6 w-6">
-                          <AvatarFallback className="text-[10px]">
-                            {student.name.substring(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex items-center">
-                          <label 
-                            htmlFor={`student-${studentId}`}
-                            className={`text-sm ${isAlreadyAssigned ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                          >
-                            {student.name}
-                          </label>
-                          {isAlreadyAssigned && (
-                            <Badge variant="outline" className="ml-2 h-4 text-[10px] px-1 bg-primary/10 text-primary border-primary/20">
-                              Assigned
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                      {isAlreadyAssigned && (
-                        <CheckCircle className="h-4 w-4 text-primary/70" />
-                      )}
-                    </div>
-                  );
-                })}
-                
-                {filteredStudents.length === 0 && (
-                  <div className="flex flex-col items-center justify-center p-4 text-center">
-                    <p className="text-sm text-muted-foreground">No matching students found</p>
                   </div>
                 )}
-              </div>
-            </ScrollArea>
-          )}
-        </div>
         
-        <DialogFooter className="flex justify-between sm:justify-between">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isSubmitting}
-          >
+        <DialogFooter className="mt-4">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
             onClick={handleSave}
-            disabled={isSubmitting}
-            className="gap-1"
+            disabled={isSubmitting || selectedStudentIds.size === 0}
           >
             {isSubmitting ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Saving...</span>
-              </>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
-              <>
-                <UserPlus className="h-4 w-4" />
-                <span>Save Assignments</span>
-              </>
+              <UserPlus className="mr-2 h-4 w-4" />
             )}
+            Assign {selectedStudentIds.size} Student{selectedStudentIds.size !== 1 && 's'}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -18,19 +18,22 @@ import { motion } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
 import stc from 'string-to-color';
 import Color from 'color';
+import { cn } from '@intellect-kanban/utils';
 
 interface AssignmentCardProps {
   assignment: Assignment;
   activityColor?: string;
   onClick?: (assignment: Assignment) => void;
   activityId?: string; // Added to support direct color generation
+  showActivityTitle?: boolean; // Optional flag to show/hide activity title
 }
 
 export function AssignmentCard({ 
   assignment, 
   activityColor,
   onClick,
-  activityId
+  activityId,
+  showActivityTitle = false
 }: AssignmentCardProps) {
   // Extract data from assignment
   const student = assignment.studentId as User;
@@ -41,6 +44,13 @@ export function AssignmentCard({
     ? student.name 
     : 'Student';
     
+  // Get student ID for color generation
+  const studentId = typeof assignment.studentId === 'object' 
+    ? student._id || (student as any).id 
+    : typeof assignment.studentId === 'string' 
+      ? assignment.studentId 
+      : 'unknown';
+    
   // Get activity title
   const activityTitle = typeof assignment.activityId === 'object'
     ? activity.title
@@ -48,6 +58,9 @@ export function AssignmentCard({
     
   // Get feedback count
   const feedbackCount = assignment.feedback?.length || 0;
+  
+  // Check if there's unread feedback
+  const hasUnreadFeedback = assignment.feedback?.some((f: any) => !f.read);
 
   // Format date (for future use)
   const formatDate = (dateString?: string) => {
@@ -62,79 +75,77 @@ export function AssignmentCard({
     ? formatDistanceToNow(new Date(assignment.updatedAt), { addSuffix: true })
     : '';
   
-  // Get status icon based on column
-  const getStatusIcon = () => {
+  // Get status info based on column
+  const getStatusInfo = () => {
     switch (assignment.columnId) {
       case 'backlog':
-        return <Clock className="h-3.5 w-3.5 text-muted-foreground" />;
+        return { 
+          icon: <Clock className="h-3 w-3" />,
+          color: 'text-muted-foreground',
+          label: 'Backlog',
+          bgColor: 'bg-muted/40 dark:bg-muted/20'
+        };
       case 'doing':
-        return <AlertCircle className="h-3.5 w-3.5 text-amber-500" />;
+        return { 
+          icon: <AlertCircle className="h-3 w-3" />,
+          color: 'text-amber-500',
+          label: 'In Progress',
+          bgColor: 'bg-amber-100/50 dark:bg-amber-900/20'
+        };
       case 'review':
-        return <MessageSquare className="h-3.5 w-3.5 text-blue-500" />;
+        return { 
+          icon: <MessageSquare className="h-3 w-3" />,
+          color: 'text-blue-500',
+          label: 'Review',
+          bgColor: 'bg-blue-100/50 dark:bg-blue-900/20'
+        };
       case 'done':
-        return <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />;
+        return { 
+          icon: <CheckCircle2 className="h-3 w-3" />,
+          color: 'text-green-500',
+          label: 'Done',
+          bgColor: 'bg-green-100/50 dark:bg-green-900/20'
+        };
       default:
-        return <Clock className="h-3.5 w-3.5 text-muted-foreground" />;
+        return { 
+          icon: <Clock className="h-3 w-3" />,
+          color: 'text-muted-foreground',
+          label: 'Unknown',
+          bgColor: 'bg-muted/40'
+        };
     }
   };
 
-  // Generate color from activity ID if provided
+  const statusInfo = getStatusInfo();
+
+  // Generate color from student ID for consistent student-specific colors
   const getBorderColor = () => {
-    // If explicit activityColor is provided, use it
+    // Always prioritize student ID for color generation for consistent student colors
+    if (studentId) return stc(studentId);
+
+    // Fallbacks only if student ID is not available
     if (activityColor) return activityColor;
-    
-    // If activityId is provided directly, use it
     if (activityId) return stc(activityId);
-    
-    // If activity is an object with _id, use that
     if (typeof assignment.activityId === 'object' && assignment.activityId?._id) {
       return stc(assignment.activityId._id);
     }
-    
-    // If activity is a string ID, use that
     if (typeof assignment.activityId === 'string') {
       return stc(assignment.activityId);
     }
-    
-    // Default color
-    return '#7f1de4'; // Default string-to-color value
+
+    // Default color as last resort
+    return '#7f1de4';
   };
   
-  // Create avatar styles with optimal text contrast
-  const getAvatarStyles = () => {
-    try {
-      // Get the base color from activity
-      const baseColor = getBorderColor();
-      
-      // Create a Color object for manipulation
-      const color = Color(baseColor);
-      
-      // Create a darker version for the gradient
-      const darkColor = color.darken(0.2).fade(0.1).toString();
-      const lightColor = color.lighten(0.1).fade(0.1).toString();
-      
-      // Determine if we need light or dark text for contrast
-      const textColor = color.isDark() ? 'text-white' : 'text-gray-900';
-      
-      return {
-        backgroundStyle: `bg-gradient-to-br from-${baseColor.replace('#', '')} to-${darkColor.replace('#', '')}`,
-        style: {
-          background: `linear-gradient(to bottom right, ${lightColor}, ${darkColor})`,
-          boxShadow: `inset 0 0 0 1px rgba(0,0,0,0.1)`
-        },
-        textColorClass: textColor
-      };
-    } catch (e) {
-      // Fallback styling if color manipulation fails
-      return {
-        backgroundStyle: "bg-gradient-to-br from-gray-500/80 to-gray-600/90",
-        style: {},
-        textColorClass: "text-white"
-      };
+  // Helper to get student initials
+  const getInitials = (name: string) => {
+    if (!name) return '??';
+    const names = name.split(' ');
+    if (names.length > 1) {
+      return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
     }
+    return name.substring(0, 2).toUpperCase();
   };
-  
-  const avatarStyles = getAvatarStyles();
   
   return (
     <motion.div
@@ -142,71 +153,100 @@ export function AssignmentCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
       transition={{ duration: 0.2 }}
-      whileHover={{ scale: 1.02, y: -2 }}
+      whileHover={{ 
+        scale: 1.01, 
+        y: -1,
+        boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
+      }}
       whileTap={{ scale: 0.98 }}
-      className="mb-3" // Added spacing between cards
+      className="mb-2.5" 
     >
       <Card 
-        className="hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-primary/5 transition-all cursor-pointer overflow-hidden w-full"
-        style={{ borderLeftWidth: '4px', borderLeftColor: getBorderColor() }}
+        className="cursor-pointer overflow-hidden w-full transition-all border-l-4"
+        style={{ borderLeftColor: getBorderColor() }}
         onClick={() => onClick?.(assignment)}
       >
-        <CardContent className="p-4">
-          {/* Activity Title with color */}
-          {activityTitle && (
-            <div className="flex items-center justify-between mb-3 pb-2 border-b border-border/30">
+        {/* Status indicator bar at top */}
+        <div className={cn("h-1 w-full", statusInfo.bgColor)} />
+        
+        <CardContent className="p-2.5">
+          {/* Activity Title with color - only show if explicitly requested */}
+          {showActivityTitle && activityTitle && (
+            <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-border/30">
               <h4 className="text-xs font-medium line-clamp-1 flex-1 flex items-center gap-1.5">
                 <span 
-                  className="inline-block h-2.5 w-2.5 rounded-full flex-shrink-0" 
+                  className="inline-block h-2 w-2 rounded-full flex-shrink-0" 
                   style={{ backgroundColor: getBorderColor() }}
                 ></span>
                 {activityTitle}
               </h4>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex-shrink-0">
-                      {getStatusIcon()}
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className="text-xs">Status: {assignment.columnId}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
             </div>
           )}
           
           <div className="flex justify-between items-center gap-2">
             <div className="flex items-center gap-2">
               {/* Student Avatar */}
-              <Avatar className="h-8 w-8 border-2 border-background">
+              <Avatar className="h-6 w-6 border-2 border-background">
                 <AvatarFallback 
-                  className={`text-[10px] font-semibold ${avatarStyles.textColorClass}`}
-                  style={avatarStyles.style}
+                  className="text-[10px] font-semibold"
+                  style={{ 
+                    background: `linear-gradient(135deg, ${Color(getBorderColor()).fade(0.3)}, ${Color(getBorderColor()).darken(0.2).fade(0.1)})`,
+                    color: Color(getBorderColor()).isDark() ? 'white' : 'black'
+                  }}
                 >
-                  {studentName.substring(0, 2).toUpperCase()}
+                  {getInitials(studentName)}
                 </AvatarFallback>
               </Avatar>
               
               {/* Student name */}
-              <div className="font-medium text-sm line-clamp-1">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="font-medium text-sm line-clamp-1 max-w-[120px]">
                 {studentName}
               </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    {studentName}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
+            
+            <div className="flex items-center gap-1.5">
+              {/* Status indicator */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className={cn("h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0", statusInfo.bgColor)}>
+                      {statusInfo.icon}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p className="text-xs">Status: {statusInfo.label}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             
             {/* Feedback indicator */}
             {feedbackCount > 0 && (
-              <Badge variant="secondary" className="h-6 px-2 flex items-center gap-1 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800">
-                <MessageSquare className="h-3.5 w-3.5" />
-                <span className="text-xs font-medium">{feedbackCount}</span>
+                <Badge 
+                  variant={hasUnreadFeedback ? "default" : "outline"}
+                  className={cn(
+                    "h-5 px-1.5 flex items-center gap-1 text-[10px]",
+                    hasUnreadFeedback ? "bg-amber-500 text-white" : ""
+                  )}
+                >
+                  <MessageSquare className="h-3 w-3" />
+                  <span>{feedbackCount}</span>
               </Badge>
             )}
+            </div>
           </div>
           
           {/* Notes if any */}
           {assignment.notes && (
-            <div className="mt-3 mb-2 p-2 bg-muted/40 rounded-md border border-border/50">
+            <div className="mt-2 p-2 bg-muted/30 rounded-md">
               <p className="text-xs line-clamp-2 text-muted-foreground">
                 {assignment.notes}
               </p>
@@ -215,12 +255,12 @@ export function AssignmentCard({
           
           {/* Footer with last updated */}
           {updatedAt && (
-            <div className="flex items-center justify-between mt-3 pt-2 text-[11px] text-muted-foreground border-t border-border/30">
+            <div className="flex items-center justify-between mt-2 pt-1.5 text-[10px] text-muted-foreground border-t border-border/30">
               <div className="flex items-center gap-1.5">
-                <Calendar className="h-3.5 w-3.5" />
+                <Calendar className="h-3 w-3" />
                 <span>{updatedAt}</span>
               </div>
-              <span className="italic">{timeAgo}</span>
+              <span className="italic truncate ml-2">{timeAgo}</span>
             </div>
           )}
         </CardContent>

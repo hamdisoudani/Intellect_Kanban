@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, Tag as TagIcon, Filter, X } from 'lucide-react';
+import { ChevronDown, Tag as TagIcon, Filter, X, Clock, AlertCircle, MessageSquare, CheckCircle2 } from 'lucide-react';
 import { Badge, Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@intellect-kanban/ui';
 
 import stc from 'string-to-color';
@@ -153,19 +153,19 @@ export function BoardLevelMetaActivities({
   
 
   return (
-    <div className="flex flex-col w-full space-y-4 p-4 pb-16">
+    <div className="flex flex-col w-full space-y-3 p-3 sm:p-4 pb-16">
       {/* Header section with controls - simplified further by removing expand/collapse buttons */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-1 sm:mb-2">
         {/* Only show title if there are activities to show */}
         {visibleActivities.length > 0 ? (
-          <h2 className="text-lg font-semibold flex items-center gap-2">
+          <h2 className="text-base sm:text-lg font-semibold flex items-center gap-1.5">
             Activities
             <Badge variant="outline" className="font-normal text-xs">
               {visibleActivities.length}
             </Badge>
           </h2>
         ) : (
-          <h2 className="text-lg font-semibold">Activities</h2>
+          <h2 className="text-base sm:text-lg font-semibold">Activities</h2>
         )}
         
         <div className="flex items-center gap-2">
@@ -174,21 +174,19 @@ export function BoardLevelMetaActivities({
             <Button
               variant="outline"
               size="sm"
-              className="h-8 text-xs font-medium flex items-center gap-1.5 bg-primary/5 hover:bg-primary/10 text-primary border-primary/20"
+              className="h-7 sm:h-8 text-xs font-medium flex items-center gap-1.5 bg-primary/5 hover:bg-primary/10 text-primary border-primary/20"
               onClick={onClearAllFilters}
             >
-              <Filter className="h-3.5 w-3.5" />
+              <Filter className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               <span>{activeFilterCount} filter{activeFilterCount !== 1 ? 's' : ''}</span>
-              <X className="h-3.5 w-3.5" />
+              <X className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
             </Button>
           )}
-          
-          {/* Removed Expand/Collapse All buttons as requested */}
         </div>
       </div>
       
       {/* Activities list with animations */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         <AnimatePresence initial={false}>
           {visibleActivities.map(activity => (
             <MetaActivityRow
@@ -211,13 +209,13 @@ export function BoardLevelMetaActivities({
       
       {/* No activities selected state */}
       {filteredMetaActivities.length === 0 && (
-        <div className="flex items-center justify-center h-60 text-muted-foreground bg-muted/10 rounded-xl border border-dashed border-border/50">
+        <div className="flex items-center justify-center h-40 sm:h-60 text-muted-foreground bg-muted/10 rounded-xl border border-dashed border-border/50">
           <div className="flex flex-col items-center gap-2">
-            <div className="w-16 h-16 rounded-full bg-muted/20 flex items-center justify-center">
-              <span className="text-2xl text-muted-foreground">👋</span>
+            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-muted/20 flex items-center justify-center">
+              <span className="text-xl sm:text-2xl text-muted-foreground">👋</span>
             </div>
-            <p className="text-base font-medium">No activities selected</p>
-            <p className="text-sm text-muted-foreground max-w-md text-center">
+            <p className="text-sm sm:text-base font-medium">No activities selected</p>
+            <p className="text-xs sm:text-sm text-muted-foreground max-w-md text-center px-4">
               Please select activities from the sidebar to display them on the board
             </p>
           </div>
@@ -236,20 +234,20 @@ export function BoardLevelMetaActivities({
         <motion.div 
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-center h-40 text-muted-foreground bg-muted/10 rounded-xl border border-dashed border-border/50 mt-2"
+          className="flex items-center justify-center h-32 sm:h-40 text-muted-foreground bg-muted/10 rounded-xl border border-dashed border-border/50 mt-2"
         >
           <div className="flex flex-col items-center gap-2">
-            <div className="w-12 h-12 rounded-full bg-muted/20 flex items-center justify-center">
-              <Filter className="h-6 w-6 text-primary" />
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-muted/20 flex items-center justify-center">
+              <Filter className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
             </div>
-            <p className="text-base font-medium">No items match your filters</p>
-            <p className="text-sm text-muted-foreground max-w-md text-center">
+            <p className="text-sm sm:text-base font-medium">No items match your filters</p>
+            <p className="text-xs sm:text-sm text-muted-foreground max-w-md text-center px-3">
               Try adjusting your filter criteria
             </p>
             <Button 
               variant="outline" 
               size="sm" 
-              className="mt-2 text-xs h-8 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
+              className="mt-1 sm:mt-2 text-xs h-7 sm:h-8 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
               onClick={onClearAllFilters}
             >
               Clear All Filters
@@ -318,7 +316,7 @@ function MetaActivityRow({
   // Animation variants
   const containerVariants = {
     collapsed: { 
-      height: 72,
+      height: 64,
       transition: { 
         type: 'spring',
         stiffness: 350,
@@ -387,7 +385,7 @@ function MetaActivityRow({
         {/* Activity Header - enhanced with better visual hierarchy and colored background */}
         <div 
           className={cn(
-            "flex items-center justify-between py-4 px-5",
+            "flex items-center justify-between py-3 px-3 sm:py-4 sm:px-5",
             "cursor-pointer",
             "transition-colors"
           )}
@@ -398,15 +396,15 @@ function MetaActivityRow({
             backdropFilter: 'blur(8px)'
           }}
         >
-          <div className="flex items-center gap-3 flex-1 min-w-0">
+          <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
             <div className="flex flex-col flex-1 min-w-0">
-              <div className="flex items-center flex-wrap gap-2">
-                <h3 className="font-semibold truncate text-lg">{activity.title}</h3>
-                <Badge variant="outline" className="text-xs bg-background/80 backdrop-blur-sm">
+              <div className="flex items-center flex-wrap gap-1.5 sm:gap-2">
+                <h3 className="font-semibold truncate text-base sm:text-lg">{activity.title}</h3>
+                <Badge variant="outline" className="text-[10px] sm:text-xs bg-background/80 backdrop-blur-sm">
                   {totalAssignments} {totalAssignments === 1 ? 'Assignment' : 'Assignments'}
                 </Badge>
                 {hasNoMatchingAssignments && (
-                  <Badge variant="outline" className="text-xs bg-destructive/10 text-destructive">
+                  <Badge variant="outline" className="text-[10px] sm:text-xs bg-destructive/10 text-destructive">
                     No matches
                   </Badge>
                 )}
@@ -414,7 +412,7 @@ function MetaActivityRow({
                   <Badge 
                     variant="outline" 
                     className={cn(
-                      "text-xs font-medium",
+                      "text-[10px] sm:text-xs font-medium",
                       activity.difficultyLevel === 'foundational' && "bg-green-100/70 text-green-800 dark:bg-green-900/30 dark:text-green-200",
                       activity.difficultyLevel === 'developing' && "bg-blue-100/70 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200",
                       activity.difficultyLevel === 'proficient' && "bg-amber-100/70 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200", 
@@ -426,17 +424,17 @@ function MetaActivityRow({
                   </Badge>
                 )}
               </div>
-              <p className="text-sm text-muted-foreground truncate mt-1">
+              <p className="text-xs sm:text-sm text-muted-foreground truncate mt-0.5 sm:mt-1">
                 {activity.description || 'No description provided'}
               </p>
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 ml-2">
             {activity.tags && activity.tags.length > 0 && (
-              <div className="flex items-center gap-1 bg-muted/20 px-2 py-1 rounded-full">
-                <TagIcon className="h-3 w-3 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">
+              <div className="flex items-center gap-1 bg-muted/20 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">
+                <TagIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-muted-foreground" />
+                <span className="text-[10px] sm:text-xs text-muted-foreground">
                   {activity.tags.length}
                 </span>
               </div>
@@ -444,10 +442,10 @@ function MetaActivityRow({
             
             <motion.div
               variants={rotateVariants}
-              className="text-muted-foreground bg-background/80 backdrop-blur-sm h-8 w-8 rounded-full flex items-center justify-center"
+              className="text-muted-foreground bg-background/80 backdrop-blur-sm h-6 w-6 sm:h-8 sm:w-8 rounded-full flex items-center justify-center"
               style={{ boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}
             >
-              <ChevronDown className="h-5 w-5" />
+              <ChevronDown className="h-4 w-4 sm:h-5 sm:w-5" />
             </motion.div>
           </div>
         </div>
@@ -467,15 +465,15 @@ function MetaActivityRow({
               <div
                 key={`${activity._id}-${column.id}`}
                 className={cn(
-                  "py-4 px-3",
+                  "py-2 px-2 sm:py-4 sm:px-3",
                   columns[0].id !== column.id && "border-l",
-                  "min-h-[120px]"
+                  "min-h-[100px] sm:min-h-[120px]"
                 )}
                 onDragOver={(e) => handleDragOver(e, column.id)}
                 onDrop={(e) => handleDrop(e, column.id)}
               >
                 <div 
-                  className="text-xs font-medium uppercase tracking-wide px-2 py-1.5 mb-3 text-center rounded-md backdrop-blur-[2px]"
+                  className="text-[10px] sm:text-xs font-medium uppercase tracking-wide px-2 py-1 sm:py-1.5 mb-2 sm:mb-3 text-center rounded-md backdrop-blur-[2px]"
                   style={{
                     background: `linear-gradient(to right, ${activityColor}15, ${activityColor}08)`,
                     color: activityColor,
@@ -485,10 +483,10 @@ function MetaActivityRow({
                   {column.name}
                 </div>
                 
-                <div className="space-y-3 px-1">
+                <div className="space-y-2 sm:space-y-3 px-1">
                   {isLoading ? (
                     Array(2).fill(0).map((_, idx) => (
-                      <div key={`skeleton-${idx}`} className="h-20 bg-muted/20 animate-pulse rounded-lg"></div>
+                      <div key={`skeleton-${idx}`} className="h-16 sm:h-20 bg-muted/20 animate-pulse rounded-lg"></div>
                     ))
                   ) : columnAssignments[column.id]?.length > 0 ? (
                     columnAssignments[column.id].map(assignment => (
@@ -502,16 +500,16 @@ function MetaActivityRow({
                       />
                     ))
                   ) : hasNoMatchingAssignments ? (
-                    <div className="flex items-center justify-center h-20 border border-dashed rounded-lg bg-destructive/5 text-xs text-muted-foreground">
+                    <div className="flex items-center justify-center h-16 sm:h-20 border border-dashed rounded-lg bg-destructive/5 text-[10px] sm:text-xs text-muted-foreground">
                       <div className="flex flex-col items-center gap-1">
                         <span>No matching assignments</span>
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-center h-20 border border-dashed rounded-lg bg-muted/10 text-xs text-muted-foreground">
+                    <div className="flex items-center justify-center h-16 sm:h-20 border border-dashed rounded-lg bg-muted/10 text-[10px] sm:text-xs text-muted-foreground">
                       <div className="flex flex-col items-center gap-1">
-                        <div className="w-8 h-8 rounded-full bg-muted/20 flex items-center justify-center">
-                          <span className="text-sm">+</span>
+                        <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-muted/20 flex items-center justify-center">
+                          <span className="text-xs sm:text-sm">+</span>
                         </div>
                         <span>No assignments</span>
                       </div>
@@ -546,6 +544,13 @@ function AssignmentCardWithStudent({
     ? assignment.studentId.name 
     : 'Unknown Student';
   
+  // Get student ID for color generation
+  const studentId = assignment.studentId && typeof assignment.studentId === 'object' 
+    ? assignment.studentId._id || assignment.studentId.id 
+    : typeof assignment.studentId === 'string' 
+      ? assignment.studentId 
+      : 'unknown';
+  
   // Get initials for avatar
   const getInitials = (name: string) => {
     return name
@@ -559,15 +564,41 @@ function AssignmentCardWithStudent({
   // Get status info based on column
   const getStatusInfo = () => {
     switch(columnId) {
-      case 'backlog': return { label: 'To Do', class: 'bg-muted/40' };
-      case 'doing': return { label: 'Working', class: 'bg-amber-100/70 dark:bg-amber-900/40' };
-      case 'review': return { label: 'Review', class: 'bg-blue-100/70 dark:bg-blue-900/40' };
-      case 'done': return { label: 'Done', class: 'bg-green-100/70 dark:bg-green-900/40' };
-      default: return { label: 'Unknown', class: 'bg-muted/40' };
+      case 'backlog': return { 
+        label: 'To Do', 
+        icon: <Clock className="h-3 w-3 text-muted-foreground" />,
+        bgColor: 'bg-muted/40 dark:bg-muted/20' 
+      };
+      case 'doing': return { 
+        label: 'Working', 
+        icon: <AlertCircle className="h-3 w-3 text-amber-500" />,
+        bgColor: 'bg-amber-100/70 dark:bg-amber-900/40' 
+      };
+      case 'review': return { 
+        label: 'Review', 
+        icon: <MessageSquare className="h-3 w-3 text-blue-500" />,
+        bgColor: 'bg-blue-100/70 dark:bg-blue-900/40' 
+      };
+      case 'done': return { 
+        label: 'Done', 
+        icon: <CheckCircle2 className="h-3 w-3 text-green-500" />,
+        bgColor: 'bg-green-100/70 dark:bg-green-900/40' 
+      };
+      default: return { 
+        label: 'Unknown', 
+        icon: <Clock className="h-3 w-3 text-muted-foreground" />,
+        bgColor: 'bg-muted/40' 
+      };
     }
   };
   
   const status = getStatusInfo();
+  
+  // Check if the item has feedback
+  const hasFeedback = assignment.feedback && assignment.feedback.length > 0;
+  
+  // Check if the item has unread feedback
+  const hasUnreadFeedback = hasFeedback && assignment.feedback.some((f: any) => !f.read);
   
   // Handle drag start with proper event typing
   const handleDragStartEvent = (e: React.DragEvent<HTMLDivElement>) => {
@@ -575,67 +606,97 @@ function AssignmentCardWithStudent({
     e.dataTransfer.setData('text/plain', assignment._id);
   };
   
+  // Generate a color based on student ID for consistent student-specific colors
+  // Always use studentId for color generation to ensure each student has a unique color
+  const studentColor = studentId ? stc(studentId) : activityColor;
+
   return (
     <div
       className="group cursor-pointer bg-card rounded-lg overflow-hidden hover:shadow-md transition-all border border-border/50"
       style={{
         transform: 'translate3d(0, 0, 0)',
         transition: 'all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-        borderLeft: `3px solid ${activityColor}`
+        borderLeft: `3px solid ${studentColor}`
       }}
       draggable
       onClick={onClick}
       onDragStart={handleDragStartEvent}
     >
-      <div 
-        className="flex flex-col h-full"
-        style={{
-          willChange: 'transform',
-          transition: 'transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
-        }}
-      >
-        <div 
-          className={cn(
-            "px-3 py-1.5 text-xs font-medium flex items-center justify-between",
-            "backdrop-filter backdrop-blur-[2px]"
-          )}
-          style={{
-            background: `linear-gradient(to right, ${activityColor}15, ${activityColor}05)`
-          }}
-        >
-          <span>{status.label}</span>
-          <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] bg-background/50 backdrop-blur-sm px-1.5 py-0.5 rounded-full">
-            Drag
-          </span>
-        </div>
-        
-        <div className="p-3 flex flex-col gap-2">
+      {/* Status indicator bar */}
+      <div className={cn("h-1 w-full", status.bgColor)} />
+      
+      <div className="flex flex-col h-full">
+        <div className="p-2.5 flex flex-col gap-2">
+          {/* Student info with avatar - No activity name shown */}
           <div className="flex items-center gap-2">
             <div 
-              className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-medium text-white shadow-sm"
-              style={{ backgroundColor: activityColor }}
+              className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-medium text-white shadow-sm"
+              style={{ backgroundColor: studentColor }}
             >
               {getInitials(studentName)}
             </div>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="font-medium text-sm truncate">
+                  <span className="font-medium text-sm truncate max-w-[130px]">
                     {studentName}
                   </span>
                 </TooltipTrigger>
-                <TooltipContent>
-                  {studentName}
+                <TooltipContent side="top" className="max-w-[250px] p-3">
+                  <div className="flex flex-col gap-1">
+                    <span className="font-medium">{studentName}</span>
+                    {assignment.notes && (
+                      <p className="text-xs text-muted-foreground mt-1 max-w-[200px]">{assignment.notes}</p>
+                    )}
+                  </div>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            
+            {/* Status indicator */}
+            <div className="ml-auto flex items-center gap-1">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <div className={cn("h-5 w-5 rounded-full flex items-center justify-center", status.bgColor)}>
+                      {status.icon}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Status: {status.label}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              {/* Feedback indicator */}
+              {hasFeedback && (
+                <Badge 
+                  variant={hasUnreadFeedback ? "default" : "outline"}
+                  className={cn(
+                    "h-5 px-1.5 flex items-center gap-1 text-[10px]",
+                    hasUnreadFeedback ? "bg-amber-500 text-white" : ""
+                  )}
+                >
+                  <MessageSquare className="h-3 w-3" />
+                  <span>{assignment.feedback.length}</span>
+                </Badge>
+              )}
+            </div>
           </div>
           
+          {/* Notes if available */}
           {assignment.notes && (
-            <p className="text-xs text-muted-foreground line-clamp-2 mt-1 bg-muted/10 p-2 rounded-md">
+            <p className="text-sm text-muted-foreground line-clamp-2 bg-muted/10 p-2 rounded-md">
               {assignment.notes}
             </p>
           )}
+          
+          {/* Drag indicator - only visible on hover */}
+          <div className="flex items-center justify-end mt-1">
+            <span className="opacity-0 group-hover:opacity-100 transition-opacity text-xs text-muted-foreground bg-muted/30 px-1.5 py-0.5 rounded-full">
+              Drag to move
+            </span>
+          </div>
         </div>
       </div>
     </div>

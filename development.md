@@ -104,12 +104,4 @@ The application provides two separate interfaces:
 
 12/06/2025 12:26PM [ done ] Completely refactored the teacher's Kanban board class view for a more focused and professional user experience. Replaced the overwhelming vertical stacking of all activity boards with a clean, paginated interface that displays one activity's assignment board at a time, filling the full screen. Enhanced component reusability by generalizing the PersonalViewBoard into a generic KanbanView, drastically reducing code duplication. Implemented a sophisticated, two-tiered filtering system: fixed global filters in the sidebar to correctly narrow down the available activities for pagination, and introduced a new, context-aware on-board filter bar whose options dynamically update based on the content of the currently visible board. Synchronized both filter systems for a seamless experience. The result is a more intuitive, performant, and powerful interface for teachers to manage class assignments.
 
----
-
-## Next Steps
-
-- Implement WebSocket gateway for real-time updates
-- Build the interactive Kanban board interfaces for both teacher and student apps
-- Create class management UI for teacher dashboard
-- Implement assignment creation and tracking functionality
-- Set up automated testing for critical features 
+06/13/2025 12:10PM [ done ] Unified the filtering experience between desktop and mobile views on the teacher's Kanban board. Refactored the filter logic by moving it to the ClassViewBoard component to be shared across different UI implementations. Replaced the non-functional mobile filter button with the full AdvancedFilterPanel, ensuring consistent functionality with the desktop view. This resolves the issue where the sidebar filter was not opening on mobile devices, providing a seamless and consistent user experience across all platforms.

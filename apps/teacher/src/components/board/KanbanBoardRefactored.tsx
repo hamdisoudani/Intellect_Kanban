@@ -368,8 +368,8 @@ export function KanbanBoardRefactored({ boardId }: KanbanBoardProps) {
               isLoadingActivities={isLoadingActivities}
               toggleMetaActivitySelection={toggleMetaActivitySelection}
               selectAllMetaActivities={selectAllMetaActivities}
-              handleManageStudents={openManageStudents}
               onViewDetails={openMetaActivityDetail}
+              onManageStudents={openManageStudents}
               metaActivitySearchQuery={metaActivitySearchQuery}
               setMetaActivitySearchQuery={setMetaActivitySearchQuery}
               

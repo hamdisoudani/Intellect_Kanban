@@ -1,37 +1,24 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { 
-  Card,
-  Avatar,
-  AvatarFallback,
-  Badge,
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '@intellect-kanban/ui';
-import { Calendar, UsersIcon, CheckSquare, Square, Tag, ChevronDown, ChevronUp } from 'lucide-react';
+import { useMemo } from 'react';
+import { Card, Badge } from '@intellect-kanban/ui';
+import { UsersIcon, CheckSquare, Square, Tag as TagIcon, Info } from 'lucide-react';
 import { motion } from 'framer-motion';
-import stc from 'string-to-color';
-import Color from 'color';
 import { Tag as TagUI } from '../ui/Tag';
 import { useTags } from '@/hooks/useTags';
 import { Tag as TagType } from '@/types/tags';
-import { Activity, DifficultyLevel } from '@/types/activities';
+import { Activity } from '@/types/activities';
 import { DifficultyBadge } from './DifficultyBadge';
-import { formatDistanceToNow } from 'date-fns';
+import { DifficultyLevel } from '@/types/activities';
 import { cn } from '@intellect-kanban/utils';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@intellect-kanban/ui';
 
 interface MetaActivityCardProps {
   activity: Activity;
   isSelected: boolean;
   isLoading: boolean;
   onSelect: (activityId: string) => void;
-  onManageStudents: (activity: Activity) => void;
-  onViewDetails?: (activity: Activity) => void;
   isPendingDeletion?: boolean;
-  isCollapsed?: boolean;
 }
 
 export function MetaActivityCard({
@@ -39,139 +26,59 @@ export function MetaActivityCard({
   isSelected,
   isLoading,
   onSelect,
-  onManageStudents,
-  onViewDetails,
   isPendingDeletion = false,
-  isCollapsed = false
 }: MetaActivityCardProps) {
-  // State for resolved tags
-  const [resolvedTags, setResolvedTags] = useState<TagType[]>([]);
-  const { tags: allTags } = useTags();
-  
-  // Resolve tags from IDs if needed
-  useEffect(() => {
-    // Skip if no tags or if activity.tags is not an array
-    if (!activity.tags || !Array.isArray(activity.tags) || activity.tags.length === 0) {
-      setResolvedTags([]);
-      return;
-    }
-    
-    // Check if we have full tag objects or just IDs
-    const hasFullTagObjects = activity.tags.some((tag: any) => 
-      typeof tag === 'object' && tag !== null && tag.name && tag.color
-    );
-    
-    if (hasFullTagObjects) {
-      // We have full tag objects, use them directly
-      setResolvedTags(activity.tags as unknown as TagType[]);
-    } else {
-      // We only have tag IDs, try to resolve them from allTags
-      const tagIds = activity.tags.map((tag: any) => 
-        typeof tag === 'object' && tag !== null ? tag._id : String(tag)
-      );
-      
-      // Find matching tags from all tags
-      const matchedTags: TagType[] = tagIds.map((tagId: string) => {
-        const matchedTag = allTags.find(tag => tag._id === tagId);
-        return matchedTag || { 
-          _id: tagId, 
-          name: 'Loading...', 
-          color: '#6366F1',
-          createdBy: '',
-          createdAt: '',
-          updatedAt: '' 
-        };
-      });
-      
-      setResolvedTags(matchedTags);
-    }
-  }, [activity.tags, allTags]);
-  
-  // Format the date for display
-  const formattedDate = activity.createdAt 
-    ? formatDistanceToNow(new Date(activity.createdAt), { addSuffix: true })
-    : 'unknown time';
-    
-  const dueDate = activity.dueDate 
-    ? new Date(activity.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    : null;
-    
-  // Calculate the number of assigned students (if available)
-  const assignedCount = activity.assignedStudents?.length || 0;
-  
-  // Generate color from activity ID
-  const getActivityColor = () => {
-    if (!activity._id) return '#6366F1';
-    return stc(activity._id);
-  };
+  // Memoize resolved tags to prevent re-computation
+  const resolvedTags = useMemo(() => {
+    if (!activity.tags || activity.tags.length === 0) return [];
+    // Assuming tags are populated correctly from the backend
+    return activity.tags as unknown as TagType[];
+  }, [activity.tags]);
 
-  // Get avatar styles using the activity color
-  const getAvatarStyles = (index: number) => {
-    try {
-      // Get the base color from activity
-      const baseColor = getActivityColor();
-      
-      // Create a Color object for manipulation
-      const color = Color(baseColor);
-      
-      // Create a darker version for the gradient
-      // Make each avatar slightly different
-      const darkenAmount = 0.1 + (index * 0.05);
-      const darkColor = color.darken(darkenAmount).fade(0.1).toString();
-      const lightColor = color.lighten(0.1).fade(0.2).toString();
-      
-      // Determine if we need light or dark text for contrast
-      const textColor = color.isDark() ? 'text-white' : 'text-gray-900';
-      
-      return {
-        style: {
-          background: `linear-gradient(to bottom right, ${lightColor}, ${darkColor})`,
-          boxShadow: `inset 0 0 0 1px rgba(0,0,0,0.1)`
-        },
-        textColorClass: textColor
-      };
-    } catch (e) {
-      // Fallback styling if color manipulation fails
-      return {
-        style: { background: '#e2e8f0' },
-        textColorClass: "text-gray-800"
-      };
+  // Memoize difficulty (for future extensibility)
+  const resolvedDifficulties: string[] = useMemo(() => {
+    if (!activity.difficultyLevel) return [];
+    if (Array.isArray(activity.difficultyLevel)) {
+      return activity.difficultyLevel.filter(Boolean);
     }
-  };
+    return [activity.difficultyLevel];
+  }, [activity.difficultyLevel]);
 
-  // Handle card click - open details dialog
+  // Handle card click for selection
   const handleCardClick = (e: React.MouseEvent) => {
-    // Don't trigger if clicking on one of the action buttons
-    if ((e.target as HTMLElement).closest('button')) {
-      return;
-    }
-
-    // Open the detail dialog
-    if (onViewDetails && !isLoading && !isPendingDeletion) {
-      onViewDetails(activity);
+    e.stopPropagation();
+    if (!isLoading && !isPendingDeletion) {
+      onSelect(activity._id);
     }
   };
 
-  // Create initials for students to show in avatar group
-  const getStudentInitials = (index: number) => {
-    if (!activity.assignedStudents || !Array.isArray(activity.assignedStudents)) return 'ST';
-    
-    const student = activity.assignedStudents[index];
-    if (!student) return 'ST';
-    
-    const name = typeof student === 'object' && student.name 
-      ? student.name 
-      : `Student ${index + 1}`;
-    
-    return name.substring(0, 2).toUpperCase();
-  };
+  const assignedCount = activity.assignedStudents?.length || 0;
 
-  // Card animation variants
-  const cardVariants = {
-    normal: { scale: 1, y: 0 },
-    hover: { scale: 1.01, y: -2 }
-  };
-  
+  // Tag display logic
+  const MAX_TAGS = 2;
+  const { displayTags, remainingTags } = useMemo(() => {
+    const tags = resolvedTags;
+    if (tags.length > MAX_TAGS) {
+      return {
+        displayTags: tags.slice(0, MAX_TAGS),
+        remainingTags: tags.slice(MAX_TAGS),
+      };
+    }
+    return { displayTags: tags, remainingTags: [] };
+  }, [resolvedTags]);
+
+  // Difficulty display logic (for future extensibility)
+  const MAX_DIFFICULTY = 1;
+  const { displayDifficulties, remainingDifficulties } = useMemo(() => {
+    if (resolvedDifficulties.length > MAX_DIFFICULTY) {
+      return {
+        displayDifficulties: resolvedDifficulties.slice(0, MAX_DIFFICULTY),
+        remainingDifficulties: resolvedDifficulties.slice(MAX_DIFFICULTY),
+      };
+    }
+    return { displayDifficulties: resolvedDifficulties, remainingDifficulties: [] };
+  }, [resolvedDifficulties]);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 5 }}
@@ -180,220 +87,168 @@ export function MetaActivityCard({
       transition={{ duration: 0.2 }}
       className="relative"
     >
-      {/* Loading overlay */}
-      {isLoading && (
+      {/* Overlays for loading and deletion states */}
+      {(isLoading || isPendingDeletion) && (
         <div className="absolute inset-0 bg-background/70 backdrop-blur-sm rounded-lg z-10 flex items-center justify-center">
           <div className="flex items-center gap-2">
-            <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
-            <span className="text-xs font-medium">Loading...</span>
+            <div className={`h-4 w-4 rounded-full border-2 ${isPendingDeletion ? 'border-destructive' : 'border-primary'} border-t-transparent animate-spin`}></div>
+            <span className={`text-xs font-medium ${isPendingDeletion ? 'text-destructive' : ''}`}>
+              {isPendingDeletion ? 'Deleting...' : 'Loading...'}
+            </span>
           </div>
         </div>
       )}
-      
-      {/* Deletion overlay */}
-      {isPendingDeletion && (
-        <div className="absolute inset-0 bg-background/70 backdrop-blur-sm rounded-lg z-10 flex items-center justify-center">
-          <div className="flex items-center gap-2">
-            <div className="h-4 w-4 rounded-full border-2 border-destructive border-t-transparent animate-spin"></div>
-            <span className="text-xs font-medium text-destructive">Deleting...</span>
-          </div>
-        </div>
-      )}
-      
-      <motion.div
-        variants={cardVariants}
-        initial="normal"
-        whileHover="hover"
-        transition={{ 
-          type: "spring", 
-          stiffness: 400, 
-          damping: 17 
-        }}
-      >
-      <Card 
-          className={cn(
-            "relative cursor-pointer w-full rounded-lg shadow-sm",
-            "transition-all duration-200",
-            "border border-border/50",
-            isSelected ? "border-primary/70 bg-primary/5" : "hover:border-muted-foreground/30 hover:shadow-md",
-          )}
+
+      <Card
+        className={cn(
+          "w-full rounded-lg shadow-sm cursor-pointer min-h-[64px] flex flex-col justify-between border-b",
+          "transition-all duration-200 border",
+          isSelected
+            ? "border-primary/80 bg-primary/5 shadow-sm border-l-4 border-l-primary"
+            : "border-border/50 hover:border-border hover:shadow-sm hover:bg-muted/10",
+          (isLoading || isPendingDeletion) && "pointer-events-none"
+        )}
         onClick={handleCardClick}
       >
-        {/* Left color indicator */}
-        <div 
-            className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-lg" 
-          style={{ backgroundColor: getActivityColor() }}
-        ></div>
-        
-        <div className="p-3 pl-4">
-          {/* Header with title and action buttons */}
-          <div className="flex items-start justify-between gap-2 mb-2">
-              <TooltipProvider>
-                <Tooltip delayDuration={300}>
-                  <TooltipTrigger asChild>
-            <h4 className="font-medium text-sm line-clamp-1 flex-1">
-              {activity.title}
-            </h4>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {activity.title}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            
-            <div className="flex items-center gap-1">
-              {/* Select button */}
-              <button 
-                  className={cn(
-                    "text-muted-foreground hover:text-foreground p-1 rounded-full transition-colors",
-                    "hover:bg-muted/50",
-                    isSelected ? "bg-primary/20 text-primary hover:bg-primary/30 hover:text-primary" : ""
-                  )}
+        <div className="px-2.5 py-2 flex flex-col h-full justify-between relative">
+          {/* Status badge - positioned at top-right for better visibility */}
+          <Badge 
+            variant={activity.difficultyLevel === 'advanced' ? 'destructive' : 'outline'} 
+            className={cn(
+              "absolute top-1.5 right-1.5 text-[9px] px-1.5 py-0 h-4 font-normal z-10",
+              activity.difficultyLevel === 'advanced' ? 'bg-amber-500/90 hover:bg-amber-500' : 'bg-blue-500/10 text-blue-600 hover:bg-blue-500/20'
+            )}
+          >
+            {activity.difficultyLevel === 'advanced' ? 'Advanced' : 'Developing'}
+          </Badge>
+
+          <div className="flex items-start justify-between gap-2 mt-0.5">
+            {/* Left side: Checkbox and Title */}
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <div
+                className="flex-shrink-0 text-muted-foreground rounded-sm hover:bg-muted/60 transition-colors"
                 onClick={(e) => {
-                  e.stopPropagation();
-                  if (!isLoading && !isPendingDeletion) {
-                    onSelect(activity._id);
-                  }
+                  e.stopPropagation(); // Prevent card click when toggling selection
+                  onSelect(activity._id);
                 }}
-                disabled={isLoading || isPendingDeletion}
-                title={isSelected ? "Deselect activity" : "Select activity"}
-                aria-label={isSelected ? "Deselect activity" : "Select activity"}
               >
                 {isSelected ? (
-                  <CheckSquare className="h-4 w-4" />
+                  <CheckSquare className="h-4 w-4 text-primary stroke-[2.5px]" />
                 ) : (
-                  <Square className="h-4 w-4" />
+                  <Square className="h-4 w-4 stroke-[2px]" />
                 )}
-              </button>
-              
-              {/* Manage students button */}
-                {isSelected && (
-              <button 
-                    className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted/50 transition-colors"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!isLoading && !isPendingDeletion) {
-                    onManageStudents(activity);
-                  }
-                }}
-                disabled={isLoading || isPendingDeletion}
-                title="Manage students"
-                aria-label="Manage students"
-              >
-                <UsersIcon className="h-4 w-4" />
-              </button>
+              </div>
+              <div className="flex-1 min-w-0 max-w-[calc(100%-40px)]">
+                <TooltipProvider>
+                  <Tooltip delayDuration={300}>
+                    <TooltipTrigger asChild>
+                      <h4 className="font-medium text-sm truncate group-hover:text-primary transition-colors pr-1">
+                        {activity.title}
+                      </h4>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" align="start" className="max-w-[250px]">
+                      <div className="flex flex-col gap-1">
+                        <span className="font-medium">{activity.title}</span>
+                        {activity.description && (
+                          <span className="text-xs text-muted-foreground">{activity.description}</span>
+                        )}
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                {activity.description && (
+                  <p className="text-xs text-muted-foreground truncate mt-0.5 pr-2">
+                    {activity.description}
+                  </p>
                 )}
-          
-                {/* Details button */}
-                {isSelected && onViewDetails && (
-                  <button 
-                    className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted/50 transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!isLoading && !isPendingDeletion && onViewDetails) {
-                        onViewDetails(activity);
-                      }
-                    }}
-                    disabled={isLoading || isPendingDeletion}
-                    title="View details"
-                    aria-label="View details"
-                  >
-                    {isCollapsed ? (
-                      <ChevronDown className="h-4 w-4" />
-                    ) : (
-                      <ChevronUp className="h-4 w-4" />
+              </div>
+            </div>
+
+            {/* Right side: Metadata - Now only for difficulty */}
+            <div className="flex-shrink-0 mr-5">
+              {/* Removed difficulty section here since we're showing it as a status badge */}
+              {false && displayDifficulties.length > 0 ? (
+                <div className="flex items-center gap-1">
+                  {displayDifficulties.map((level: string, idx: number) => (
+                    <DifficultyBadge key={level + idx} difficultyLevel={level as DifficultyLevel} size="sm" />
+                  ))}
+                  {remainingDifficulties.length > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-muted cursor-pointer">+{remainingDifficulties.length}</span>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {remainingDifficulties.map((level: string, idx: number) => (
+                          <DropdownMenuItem key={level + idx} className="px-2 py-1 text-[10px]">
+                            <DifficultyBadge difficultyLevel={level as DifficultyLevel} size="sm" />
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
-                  </button>
-                )}
-              </div>
-            </div>
-          
-            {/* Main content with flexible layout */}
-            <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
-              {/* Left column */}
-              <div className="flex flex-col gap-1.5">
-                {/* Difficulty level */}
-                {activity.difficultyLevel ? (
-                  <DifficultyBadge difficultyLevel={activity.difficultyLevel} />
-                ) : (
-                  <span className="text-xs text-muted-foreground">No difficulty set</span>
-                )}
-                
-                {/* Student count */}
-            <div className="flex items-center gap-1.5">
-                <div className="flex -space-x-2">
-                    {[...Array(Math.min(assignedCount, 3))].map((_, index) => {
-                      const avatarStyles = getAvatarStyles(index);
-                      return (
-                        <Avatar key={`student-${index}`} className="h-5 w-5 border border-background">
-                          <AvatarFallback 
-                            className={`text-[8px] font-semibold ${avatarStyles.textColorClass}`}
-                            style={avatarStyles.style}
-                          >
-                            {getStudentInitials(index)}
-                      </AvatarFallback>
-                    </Avatar>
-                      );
-                    })}
-                  </div>
-                  
-                  <span className="text-xs text-muted-foreground">
-                    {assignedCount > 0 
-                      ? `${assignedCount} ${assignedCount === 1 ? 'student' : 'students'}`
-                      : 'No students'}
-                  </span>
                 </div>
-              </div>
-              
-              {/* Right column */}
-              <div className="flex flex-col items-end gap-1.5 text-right">
-                {/* Due date */}
-                {dueDate && (
-                  <div className="flex items-center gap-1 text-muted-foreground">
-                    <Calendar className="h-3 w-3" />
-                    <span className="text-xs">{dueDate}</span>
-                  </div>
+              ) : (
+                <span className="hidden text-[10px] text-muted-foreground">No difficulty</span>
+              )}
+            </div>
+          </div>
+
+          {/* Footer section with Tags and Student Count */}
+          <div className="flex items-center justify-between gap-1.5 mt-2 pl-6 min-h-[20px]">
+            {/* Tags section */}
+            <div className="flex items-center gap-1 flex-1 min-w-0 max-w-[calc(100%-45px)]">
+              <TagIcon className="h-3 w-3 text-muted-foreground/70 flex-shrink-0" />
+              <div className="flex items-center gap-1 flex-nowrap overflow-hidden">
+                {displayTags.length > 0 ? (
+                  <>
+                    {displayTags.map(tag => (
+                      <TagUI 
+                        key={tag._id} 
+                        label={tag.name} 
+                        color={tag.color} 
+                        size="sm" 
+                        className="py-0.5 px-1.5 text-xs shadow-sm max-w-[80px] truncate flex-shrink-0" 
+                      />
+                    ))}
+                    {remainingTags.length > 0 && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Badge 
+                            variant="secondary" 
+                            className="ml-1 text-xs px-1.5 py-0 h-5 rounded-full cursor-pointer hover:bg-secondary/80 flex-shrink-0"
+                          >
+                            +{remainingTags.length}
+                          </Badge>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {remainingTags.map(tag => (
+                            <DropdownMenuItem key={tag._id} className="px-2 py-1 text-xs">
+                              <TagUI 
+                                label={tag.name} 
+                                color={tag.color} 
+                                size="sm" 
+                                className="py-0.5 px-1.5 text-xs w-full" 
+                              />
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-xs text-muted-foreground/70 italic truncate">No tag</span>
                 )}
-                
-                {/* Created time */}
-                <span className="text-xs text-muted-foreground">
-                  {formattedDate}
-                </span>
               </div>
             </div>
-            
-            {/* Tags row - at the bottom for better separation */}
-            {resolvedTags.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-border/30">
-                {resolvedTags.slice(0, 3).map(tag => (
-                  <TagUI key={tag._id} label={tag.name} color={tag.color} size="sm" />
-                ))}
-                {resolvedTags.length > 3 && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Badge variant="outline" className="text-[10px] h-5 px-1.5 bg-muted/20">
-                          +{resolvedTags.length - 3}
-                        </Badge>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-xs font-medium">Additional tags:</span>
-                          <div className="flex flex-wrap gap-1">
-                            {resolvedTags.slice(3).map(tag => (
-                              <TagUI key={tag._id} label={tag.name} color={tag.color} size="sm" />
-                            ))}
-                          </div>
-                        </div>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-              </div>
-            )}
+
+            {/* Student count */}
+            <div className="flex items-center gap-1 text-xs text-muted-foreground/80 flex-shrink-0 bg-muted/30 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+              <UsersIcon className="h-2.5 w-2.5" />
+              <span className="font-medium">{assignedCount}</span>
+            </div>
+          </div>
         </div>
       </Card>
-      </motion.div>
     </motion.div>
   );
 } 
