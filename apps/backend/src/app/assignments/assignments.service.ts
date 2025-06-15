@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Assignment, AssignmentDocument } from './schemas/assignment.schema';
@@ -7,13 +7,16 @@ import { UpdateAssignmentDto } from './dto/update-assignment.dto';
 import { UserRole } from '../users/schemas/user.schema';
 import { Activity } from '../activities/schemas/activity.schema';
 import { BoardGateway } from '../websockets/board.gateway';
+import { Logger } from '@nestjs/common';
 
 @Injectable()
 export class AssignmentsService {
+  private readonly logger = new Logger(AssignmentsService.name);
+
   constructor(
     @InjectModel(Assignment.name) private assignmentModel: Model<AssignmentDocument>,
     @InjectModel(Activity.name) private activityModel: Model<Activity>,
-    private boardGateway: BoardGateway
+    private readonly boardGateway: BoardGateway
   ) {}
 
   /**
@@ -38,6 +41,7 @@ export class AssignmentsService {
     
     // Create assignments for each student
     const assignments: Assignment[] = [];
+    const createdAssignments: AssignmentDocument[] = [];
     
     for (const studentId of studentIds) {
       // Check if assignment already exists for this student and activity
@@ -66,17 +70,59 @@ export class AssignmentsService {
     
     // Save all assignments
     if (assignments.length > 0) {
-      await this.assignmentModel.insertMany(assignments);
+      const savedAssignments = await this.assignmentModel.insertMany(assignments);
+      createdAssignments.push(...savedAssignments);
+      
+      // For each created assignment, emit real-time update to the student
+      for (const assignment of savedAssignments) {
+        // Populate the assignment with activity details for richer notifications
+        const populatedAssignment = await this.assignmentModel.findById(assignment._id)
+          .populate({
+            path: 'activityId',
+            select: 'title description dueDate tags difficultyLevel estimatedTimeMinutes type createdBy',
+            populate: {
+              path: 'tags',
+              select: '_id name color'
+            }
+          })
+          .populate('studentId', '_id name')
+          .exec();
+
+        if (populatedAssignment) {
+          console.log('Populated assignment:', populatedAssignment);
+          // Emit to specific student's room
+          const studentId = populatedAssignment.studentId;
+
+          const assignmentData = {
+            _id: populatedAssignment._id,
+            activityId: populatedAssignment.activityId,
+            studentId: populatedAssignment.studentId,
+            boardId: populatedAssignment.boardId,
+            columnId: populatedAssignment.columnId,
+            position: populatedAssignment.position,
+            notes: populatedAssignment.notes,
+            columnHistory: populatedAssignment.columnHistory,
+            // Convert timestamps to ISO strings for serialization
+            createdAt: populatedAssignment.get('createdAt') ? populatedAssignment.get('createdAt').toISOString() : new Date().toISOString(),
+            updatedAt: populatedAssignment.get('updatedAt') ? populatedAssignment.get('updatedAt').toISOString() : new Date().toISOString()
+          };
+          
+          const studentIdForLogging = typeof studentId === 'object' && studentId !== null && '_id' in studentId 
+            ? (studentId as any)._id 
+            : studentId;
+          
+          this.logger.log(`Emitting assignmentCreated event to student ${studentIdForLogging} for assignment ${populatedAssignment._id}`);
+          
+          // Use the BoardGateway's notifyStudentAboutNewAssignment method
+          this.boardGateway.notifyStudentAboutNewAssignment(
+            boardId,
+            studentId,
+            assignmentData
+          );
+        }
+      }
     }
     
-    // Return all assignments for this activity, including existing ones
-    const createdAssignments = await this.assignmentModel.find({ 
-      activityId: new Types.ObjectId(activityId) 
-    })
-      .populate('studentId', 'name _id')
-      .populate('activityId', 'title _id')
-      .exec();
-
     return createdAssignments;
   }
 

@@ -12,6 +12,7 @@ interface BoardState {
   fetchBoardData: (boardId: string) => Promise<void>;
   updateAssignment: (updatedAssignment: AssignmentWithMeta) => void;
   removeAssignment: (assignmentId: string) => void;
+  addAssignment: (newAssignment: AssignmentWithMeta) => void;
 }
 
 export const useBoardStore = create<BoardState>((set, get) => ({
@@ -80,6 +81,12 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   removeAssignment: (assignmentId: string) => {
     set(state => ({
       assignments: state.assignments.filter(a => a._id !== assignmentId),
+    }));
+  },
+
+  addAssignment: (newAssignment: AssignmentWithMeta) => {
+    set(state => ({
+      assignments: [...state.assignments, newAssignment],
     }));
   },
 })); 

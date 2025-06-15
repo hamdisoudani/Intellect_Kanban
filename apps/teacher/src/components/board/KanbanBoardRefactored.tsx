@@ -259,7 +259,30 @@ export function KanbanBoardRefactored({ boardId }: KanbanBoardProps) {
   // Add handleActivityCreated function
   const handleActivityCreated = (newActivity: any) => {
     if (board && board._id) {
-      createActivity(board._id, newActivity);
+      // Update local state instead of creating a new API call
+      useActivitiesStore.setState(state => {
+        const updatedActivities = { ...state.activities };
+        const columnId = newActivity.columnId;
+        
+        if (columnId) {
+          if (!updatedActivities[columnId]) {
+            updatedActivities[columnId] = [];
+          }
+          updatedActivities[columnId] = [...updatedActivities[columnId], newActivity];
+        }
+        
+        // If it's a meta activity, add it to the meta activities list
+        const updatedMetaActivities = [...state.metaActivities];
+        if (newActivity.type === 'meta') {
+          updatedMetaActivities.push(newActivity);
+        }
+        
+        return {
+          activities: updatedActivities,
+          metaActivities: updatedMetaActivities,
+          isCreateActivityOpen: false // Close the create dialog
+        };
+      });
     }
   };
 

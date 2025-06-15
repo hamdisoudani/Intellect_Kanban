@@ -119,4 +119,23 @@ export class BoardGateway
       assignment: assignmentData
     });
   }
+  
+  /**
+   * Notify a student about a new assignment
+   * This method will be called from AssignmentsService
+   */
+  notifyStudentAboutNewAssignment(boardId: string, studentId: string | any, assignmentData: any) {
+    // Extract student ID as string from object if needed
+    const studentIdStr = typeof studentId === 'object' && studentId !== null 
+      ? (studentId._id ? studentId._id.toString() : studentId.toString())
+      : studentId;
+      
+    const room = `board:${boardId}:student:${studentIdStr}`;
+    this.logger.log(`[BoardGateway] Notifying student ${studentIdStr} in room ${room} about new assignment`);
+    
+    this.server.to(room).emit('assignmentCreated', {
+      boardId,
+      assignment: assignmentData
+    });
+  }
 } 

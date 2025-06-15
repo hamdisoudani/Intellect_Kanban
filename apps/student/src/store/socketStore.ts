@@ -84,6 +84,54 @@ export const useSocketStore = create<SocketState>((set, get) => ({
       toast.info('An assignment has been removed by the teacher.');
     });
 
+    socketInstance.on('assignmentCreated', (data: { assignment: any }) => {
+      console.log('[WebSocket] assignmentCreated event received:', data);
+      
+      try {
+        // Extract activity ID and student ID safely
+        const activityId = typeof data.assignment.activityId === 'object' && data.assignment.activityId !== null
+          ? data.assignment.activityId._id
+          : data.assignment.activityId;
+          
+        const studentId = typeof data.assignment.studentId === 'object' && data.assignment.studentId !== null
+          ? data.assignment.studentId._id
+          : data.assignment.studentId;
+        
+        // Transform the assignment to match the format expected by the UI
+        const transformedAssignment: AssignmentWithMeta = {
+          _id: data.assignment._id,
+          activityId: activityId,
+          studentId: studentId,
+          boardId: data.assignment.boardId,
+          columnId: data.assignment.columnId,
+          position: data.assignment.position,
+          notes: data.assignment.notes,
+          title: data.assignment.activityId.title,
+          description: data.assignment.activityId.description,
+          dueDate: data.assignment.activityId.dueDate,
+          difficultyLevel: data.assignment.activityId.difficultyLevel,
+          estimatedTimeMinutes: data.assignment.activityId.estimatedTimeMinutes,
+          tags: Array.isArray(data.assignment.activityId.tags) 
+            ? data.assignment.activityId.tags.map((tag: any) => ({
+                id: tag._id,
+                label: tag.name,
+                color: tag.color
+              })) 
+            : [],
+          createdAt: data.assignment.createdAt,
+          updatedAt: data.assignment.updatedAt
+        };
+        
+        useBoardStore.getState().addAssignment(transformedAssignment);
+        toast.info('New assignment received', {
+          description: `You've been assigned: ${transformedAssignment.title}`
+        });
+      } catch (error) {
+        console.error('[WebSocket] Error processing assignment created event:', error);
+        toast.error('Error processing new assignment');
+      }
+    });
+
     socketInstance.on('assignmentUpdated', (data: { assignment: AssignmentWithMeta }) => {
       console.log('[WebSocket] assignmentUpdated event received:', data);
       useBoardStore.getState().updateAssignment(data.assignment);

@@ -9,6 +9,7 @@ import { UsersService } from '../users/users.service';
 import { ClassesService } from '../classes/classes.service';
 import { AssignmentsService } from '../assignments/assignments.service';
 import { TagsService } from '../tags/tags.service';
+import { UpdateActivityDto } from './dto/update-activity.dto';
 
 @Injectable()
 export class ActivitiesService {
@@ -128,6 +129,17 @@ export class ActivitiesService {
         return savedActivity; 
       }
       if (createActivityDto.type === 'meta') {
+        // Check if a meta activity with the same name already exists in this board
+        const existingActivity = await this.activityModel.findOne({
+          title: createActivityDto.title,
+          boardId: createActivityDto.boardId,
+          type: 'meta'
+        }).exec();
+        
+        if (existingActivity) {
+          throw new BadRequestException('A class activity with this name already exists in this board.');
+        }
+        
         // assignedStudents can be empty or undefined
         let validStudentIds: Types.ObjectId[] = [];
         if (createActivityDto.assignedStudents && createActivityDto.assignedStudents.length > 0) {
@@ -726,5 +738,84 @@ export class ActivitiesService {
     
     // Save and return the updated activity
     return activity.save();
+  }
+
+  /**
+   * Update an activity
+   */
+  async update(id: string, updateActivityDto: UpdateActivityDto, userId: string, userRole: string): Promise<ActivityDocument> {
+    try {
+      // Find the activity first to check permissions
+      const activity = await this.findOne(id);
+      
+      // Check if user has permission
+      if (userRole === UserRole.STUDENT) {
+        throw new ForbiddenException('Students cannot update activities');
+      }
+
+      if (userRole === UserRole.TEACHER) {
+        const createdById = typeof activity.createdBy === 'object' && activity.createdBy !== null
+          ? (activity.createdBy as any)._id.toString()
+          : String(activity.createdBy);
+        if (createdById !== userId) {
+          throw new ForbiddenException('Teachers can only update their own activities');
+        }
+      }
+
+      // If we're updating the title and it's a meta activity, check for duplicates
+      if (updateActivityDto.title && activity.type === 'meta') {
+        // Check if another meta activity with the same name already exists in this board
+        const existingActivity = await this.activityModel.findOne({
+          _id: { $ne: new Types.ObjectId(id) }, // Exclude current activity
+          title: updateActivityDto.title,
+          boardId: activity.boardId,
+          type: 'meta'
+        }).exec();
+        
+        if (existingActivity) {
+          throw new BadRequestException('A class activity with this name already exists in this board');
+        }
+      }
+
+      // Check due date is in the future if provided
+      if (updateActivityDto.dueDate) {
+        const dueDate = new Date(updateActivityDto.dueDate);
+        if (dueDate <= new Date()) {
+          throw new BadRequestException('Due date must be in the future');
+        }
+      }
+
+      // Validate tags if provided
+      if (updateActivityDto.tags) {
+        updateActivityDto.tags = await this.validateTags(updateActivityDto.tags, userId) as any;
+      }
+
+      // Update the activity
+      const updatedActivity = await this.activityModel.findByIdAndUpdate(
+        id,
+        { $set: updateActivityDto },
+        { new: true } // Return the updated document
+      )
+      .populate('createdBy', 'name _id')
+      .populate('assignedStudents', 'name _id')
+      .populate('tags', '_id name color')
+      .exec();
+
+      if (!updatedActivity) {
+        throw new NotFoundException(`Activity with ID ${id} not found`);
+      }
+
+      return updatedActivity;
+    } catch (error: any) {
+      // If error is already a NestJS HTTP exception, rethrow it
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      throw new BadRequestException(error.message || 'Failed to update activity');
+    }
   }
 } 

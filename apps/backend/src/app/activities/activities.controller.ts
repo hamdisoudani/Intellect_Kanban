@@ -19,6 +19,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/schemas/user.schema';
 import type { RequestWithUser } from '../auth/interfaces/request-with-user.interface';
+import { UpdateActivityDto } from './dto/update-activity.dto';
 
 @Controller('activities')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -80,6 +81,30 @@ export class ActivitiesController {
       return await this.activitiesService.findOne(
         id, 
         req.user.userId, 
+        req.user.role
+      );
+    } catch (error) {
+      // Controller level error handling
+      throw error;
+    }
+  }
+
+  /**
+   * Update an activity
+   */
+  @Patch(':id')
+  @Roles(UserRole.TEACHER)
+  @HttpCode(HttpStatus.OK)
+  async update(
+    @Param('id') id: string,
+    @Body() updateActivityDto: UpdateActivityDto,
+    @Req() req: RequestWithUser
+  ) {
+    try {
+      return await this.activitiesService.update(
+        id,
+        updateActivityDto,
+        req.user.userId,
         req.user.role
       );
     } catch (error) {

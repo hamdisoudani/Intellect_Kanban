@@ -7,6 +7,7 @@ import { DifficultyLevel } from '@/types/activities';
 type ExtendedActivity = Activity & {
   tags?: any[];
   difficultyLevel?: DifficultyLevel;
+  estimatedTimeMinutes?: number;
 };
 
 interface ActivitiesState {
@@ -233,14 +234,32 @@ export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
   
   updateActivity: async (boardId: string, activityId: string, updates: Partial<ExtendedActivity>) => {
     try {
-      const response = await fetch(`/api/board/${boardId}/activities/${activityId}`, {
+      // Create a clean object with only the properties we want to send
+      const updateToSend: any = {};
+      
+      // Only add properties that exist and should be sent
+      if (updates.title !== undefined) updateToSend.title = updates.title;
+      if (updates.description !== undefined) updateToSend.description = updates.description;
+      if (updates.dueDate !== undefined) updateToSend.dueDate = updates.dueDate;
+      if (updates.difficultyLevel !== undefined) updateToSend.difficultyLevel = updates.difficultyLevel;
+      if (updates.estimatedTimeMinutes !== undefined) updateToSend.estimatedTimeMinutes = updates.estimatedTimeMinutes;
+      
+      // Handle tags separately to ensure we only send tag IDs
+      if (updates.tags !== undefined) {
+        updateToSend.tags = updates.tags.map(tag => 
+          typeof tag === 'string' ? tag : tag._id
+        );
+      }
+      
+      const response = await fetch(`/api/activities/${activityId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
+        body: JSON.stringify(updateToSend),
       });
       
       if (!response.ok) {
-        throw new Error('Failed to update activity');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update activity');
       }
       
       const updatedActivity: ExtendedActivity = await response.json();

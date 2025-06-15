@@ -370,7 +370,7 @@ export function CreateActivityDialog({
         payload.tags = values.tags.map((tag: TagType) => tag._id);
       }
       
-      console.log('Submitting new activity:', payload);
+      console.log('Submitting new activity from CreateActivityDialog:', payload);
       
       // Use the API endpoint
       const response = await fetch(`/api/board/${boardId}/activities`, {
