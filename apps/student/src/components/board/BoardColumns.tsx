@@ -15,7 +15,7 @@ import { toast } from 'sonner';
 import AssignmentCard from './AssignmentCard';
 import { AssignmentDetail } from './AssignmentDetail';
 import { LayoutList } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { updateAssignmentColumn } from '@/utils/api';
 
 interface BoardColumnsProps {
@@ -37,24 +37,18 @@ export function BoardColumns({
   const [draggingAssignment, setDraggingAssignment] = useState<string | null>(null);
   const [draggingFromColumn, setDraggingFromColumn] = useState<string | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState<string | null>(null);
-  const [localAssignments, setLocalAssignments] = useState<AssignmentWithMeta[]>(assignments);
   const [pendingUpdateAssignments, setPendingUpdateAssignments] = useState<Record<string, boolean>>({});
   
   // Group assignments by column for more efficient updates and rendering
   const assignmentsByColumn = board.columns.reduce<Record<string, AssignmentWithMeta[]>>(
     (acc, column) => {
-      acc[column.id] = localAssignments
+      acc[column.id] = assignments
         .filter(assignment => assignment.columnId === column.id)
         .sort((a, b) => a.position - b.position);
       return acc;
     }, 
     {}
   );
-
-  // Update local assignments when props assignments change (but not during a drag operation)
-  if (!draggingAssignment && JSON.stringify(assignments.map(a => a._id)) !== JSON.stringify(localAssignments.map(a => a._id))) {
-    setLocalAssignments(assignments);
-  }
 
   // Handle opening assignment detail
   const handleOpenAssignment = (assignment: AssignmentWithMeta) => {
@@ -111,7 +105,7 @@ export function BoardColumns({
     }
     
     // Find the assignment that's being moved
-    const assignment = localAssignments.find(a => a._id === assignmentId);
+    const assignment = assignments.find(a => a._id === assignmentId);
     if (!assignment) return;
     
     // Reset drag states
@@ -125,7 +119,7 @@ export function BoardColumns({
     }));
     
     // Calculate the new position - find highest position in target column and add 1
-    const assignmentsInTargetColumn = localAssignments.filter(a => a.columnId === columnId);
+    const assignmentsInTargetColumn = assignments.filter(a => a.columnId === columnId);
     const highestPosition = assignmentsInTargetColumn.length > 0
       ? Math.max(...assignmentsInTargetColumn.map(a => a.position))
       : -1;
@@ -140,10 +134,10 @@ export function BoardColumns({
       position: newPosition 
     };
     
-    // Update local state optimistically
-    setLocalAssignments(prev => 
-      prev.map(a => a._id === assignmentId ? updatedAssignment : a)
-    );
+    // Update local state optimistically by calling the store's update function
+    if(onAssignmentUpdated) {
+      onAssignmentUpdated(updatedAssignment);
+    }
     
     // Show loading notification using toastId for updating later
     const toastId = toast.loading('Updating assignment...');
@@ -162,48 +156,21 @@ export function BoardColumns({
           ...prev,
           [assignmentId]: false
         }));
-        
-        // Update local state with the response from the server
-        if (onAssignmentUpdated && response) {
-          // Create a complete assignment with metadata
-          const updatedWithMeta: AssignmentWithMeta = {
-            ...updatedAssignment,
-            ...response,
-            // Keep metadata that might not be in the response
-            columnId: response.columnId || columnId, // Ensure columnId is updated
-            position: response.position || newPosition, // Ensure position is updated
-            title: updatedAssignment.title,
-            description: updatedAssignment.description,
-            tags: updatedAssignment.tags,
-            priority: updatedAssignment.priority,
-            attachments: updatedAssignment.attachments,
-            difficultyLevel: updatedAssignment.difficultyLevel,
-            estimatedTimeMinutes: updatedAssignment.estimatedTimeMinutes,
-            dueDate: updatedAssignment.dueDate,
-            feedback: updatedAssignment.feedback
-          };
-          
-          onAssignmentUpdated(updatedWithMeta);
-        }
       })
       .catch(error => {
         console.error('BoardColumns: Error updating assignment column:', error);
         toast.error(`Update failed: ${error.message || 'Unknown error'}`, { id: toastId });
         
-        // Revert the UI change on error
-        setLocalAssignments(assignments);
+        // Revert the UI change on error by calling the refresh function
+        if (onRefreshNeeded) {
+          onRefreshNeeded();
+        }
         
         // Remove pending status
         setPendingUpdateAssignments(prev => ({
           ...prev,
           [assignmentId]: false
         }));
-        
-        // If there's a refresh function provided, call it in case
-        // we need to sync with the server after an error
-        if (onRefreshNeeded) {
-          onRefreshNeeded();
-        }
       });
   };
 
@@ -312,24 +279,26 @@ export function BoardColumns({
                           </div>
                         </div>
                       ) : (
-                        columnAssignments.map((assignment) => (
-                          <div 
+                        <ScrollArea className="flex-grow pr-2">
+                          <div className="space-y-2">
+                            <AnimatePresence>
+                              {assignmentsByColumn[column.id].map((assignment) => (
+                                <motion.div
                             key={assignment._id}
+                                  layout
+                                  initial={{ opacity: 0, scale: 0.8, y: 20 }}
+                                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                                  exit={{ opacity: 0, scale: 0.8, x: -50, transition: { duration: 0.3, ease: "easeOut" } }}
+                                  className="w-full"
+                                >
+                                  <div
                             className="cursor-pointer"
                             onClick={() => handleOpenAssignment(assignment)}
                           >
                             <AssignmentCard
                               id={assignment._id}
-                              activityId={{
-                                title: assignment.title,
-                                description: assignment.description,
-                                dueDate: assignment.dueDate,
-                                tags: assignment.tags,
-                                difficultyLevel: assignment.difficultyLevel,
-                                estimatedTimeMinutes: assignment.estimatedTimeMinutes,
-                                attachments: assignment.attachments
-                              }}
-                              columnId={column.id}
+                                      activityId={assignment}
+                                      columnId={assignment.columnId}
                               position={assignment.position}
                               status={assignment.columnId === 'done' ? 'COMPLETED' : assignment.dueDate && new Date(assignment.dueDate) < new Date() ? 'OVERDUE' : 'IN_PROGRESS'}
                               isDragging={draggingAssignment === assignment._id}
@@ -338,7 +307,11 @@ export function BoardColumns({
                               onDragEnd={handleDragEnd}
                             />
                           </div>
-                        ))
+                                </motion.div>
+                              ))}
+                            </AnimatePresence>
+                          </div>
+                        </ScrollArea>
                       )}
                     </div>
                   </CardContent>

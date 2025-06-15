@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
+import { SessionProvider, useSession } from 'next-auth/react';
 import {
   DashboardLayout,
   Header,
@@ -12,28 +13,13 @@ import {
   AssignmentIcon,
   SettingsIcon,
 } from '@intellect-kanban/ui';
-import { getSession, logout } from '../../server/auth-actions';
+import { logout } from '../../server/auth-actions';
 
-export default function DashboardRootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const [user, setUser] = useState<any>(null);
+function DashboardContent({ children }: { children: React.ReactNode }) {
+  const { data: session } = useSession();
+  const user = session?.user;
   const pathname = usePathname();
   const isBoardRoute = pathname.includes('/dashboard/board/');
-
-  // Fetch session on component mount
-  useEffect(() => {
-    const fetchSession = async () => {
-      const session = await getSession();
-      if (session?.user) {
-        setUser(session.user);
-      }
-    };
-
-    fetchSession();
-  }, []);
 
   // Handle sign out
   const handleSignOut = async () => {
@@ -89,7 +75,7 @@ export default function DashboardRootLayout({
     ],
     userProfile: user ? {
       name: user.name || 'Student',
-      avatar: user.image,
+      avatar: user.image ?? undefined,
     } : undefined,
   };
 
@@ -113,5 +99,17 @@ export default function DashboardRootLayout({
     >
       {children}
     </DashboardLayout>
+  );
+}
+
+export default function DashboardRootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <SessionProvider>
+      <DashboardContent>{children}</DashboardContent>
+    </SessionProvider>
   );
 } 

@@ -1,51 +1,48 @@
 import { io, Socket } from 'socket.io-client';
-import { getSession } from 'next-auth/react';
 
 // Socket.IO singleton instance
 let socket: Socket | null = null;
 
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3005';
+
 /**
- * Initialize and get the Socket.IO instance
- * @returns Socket instance
+ * Gets or creates a Socket.IO instance with authentication.
+ * The namespace is hardcoded to '/boards' as that is where the board-related events are.
  */
-export const getSocket = async (): Promise<Socket> => {
+export const getSocket = (token: string): Socket => {
   if (socket) {
+    console.log('[SocketUtil] Returning existing socket instance.');
+    // Update auth token in case it changed
+    socket.auth = { token: `Bearer ${token}` };
     return socket;
   }
 
-  // Get the authentication token from the session
-  const session = await getSession();
-  // Access the token from the session, structure may vary based on your auth setup
-  const token = session?.user?.accessToken || '';
-
-  if (!token) {
-    throw new Error('Authentication token not found. Please log in again.');
-  }
-
-  // Create a new socket instance with authentication token
-  socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3005', {
-    path: '/socket.io',
-    autoConnect: false, // Don't connect automatically
+  console.log('[SocketUtil] Creating new socket instance.');
+  socket = io(`${SOCKET_URL}/boards`, {
+    autoConnect: false,
+    transports: ['websocket'],
     reconnection: true,
     reconnectionAttempts: 5,
     reconnectionDelay: 1000,
-    transports: ['websocket', 'polling'],
     auth: {
-      token: `Bearer ${token}`
+      token: `Bearer ${token}`,
     },
-    extraHeaders: {
-      Authorization: `Bearer ${token}`
-    }
   });
+
+  // Log basic connection events for debugging
+  socket.on('connect', () => console.log('[SocketUtil] Socket connected.'));
+  socket.on('disconnect', (reason) => console.log(`[SocketUtil] Socket disconnected: ${reason}`));
+  socket.on('connect_error', (err) => console.error(`[SocketUtil] Connection error: ${err.message}`));
 
   return socket;
 };
 
 /**
- * Disconnect and cleanup socket instance
+ * Disconnects and nullifies the singleton socket instance.
  */
-export const disconnectSocket = () => {
+export const disconnectSocket = (): void => {
   if (socket) {
+    console.log('[SocketUtil] Disconnecting socket.');
     socket.disconnect();
     socket = null;
   }

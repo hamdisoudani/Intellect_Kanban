@@ -15,6 +15,7 @@ interface MetaActivitiesColumnProps {
   isLoadingActivities: boolean;
   isLoadingAssignments: Record<string, boolean>;
   deletingActivityId: string;
+  deletionErrorId: string;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   toggleMetaActivitySelection: (activityId: string) => Promise<void>;
@@ -70,6 +71,7 @@ export function MetaActivitiesColumn({
   isLoadingActivities,
   isLoadingAssignments,
   deletingActivityId,
+  deletionErrorId,
   searchQuery,
   setSearchQuery,
   toggleMetaActivitySelection,
@@ -288,16 +290,19 @@ export function MetaActivitiesColumn({
             ))
           ) : getFilteredMetaActivities().length > 0 ? (
           // Render activities 
-          getFilteredMetaActivities().map(activity => (
+          <AnimatePresence>
+            {getFilteredMetaActivities().map(activity => (
             <MetaActivityCard
                 key={activity._id}
                   activity={activity}
                   isSelected={selectedMetaActivities.has(activity._id)}
-              isLoading={isLoadingAssignments[activity._id] || false}
-              isPendingDeletion={activity._id === deletingActivityId}
+                isLoading={!!isLoadingAssignments[activity._id]}
+                isPendingDeletion={deletingActivityId === activity._id}
+                isDeletionError={deletionErrorId === activity._id}
               onSelect={() => toggleMetaActivitySelection(activity._id)}
                 />
-            ))
+            ))}
+          </AnimatePresence>
           ) : (
           // Empty state with more instructive messaging
           <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">

@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { Card, Badge } from '@intellect-kanban/ui';
-import { UsersIcon, CheckSquare, Square, Tag as TagIcon, Info } from 'lucide-react';
+import { UsersIcon, CheckSquare, Square, Tag as TagIcon, Info, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Tag as TagUI } from '../ui/Tag';
 import { useTags } from '@/hooks/useTags';
@@ -19,6 +19,7 @@ interface MetaActivityCardProps {
   isLoading: boolean;
   onSelect: (activityId: string) => void;
   isPendingDeletion?: boolean;
+  isDeletionError?: boolean;
 }
 
 export function MetaActivityCard({
@@ -27,6 +28,7 @@ export function MetaActivityCard({
   isLoading,
   onSelect,
   isPendingDeletion = false,
+  isDeletionError = false,
 }: MetaActivityCardProps) {
   // Memoize resolved tags to prevent re-computation
   const resolvedTags = useMemo(() => {
@@ -88,12 +90,16 @@ export function MetaActivityCard({
       className="relative"
     >
       {/* Overlays for loading and deletion states */}
-      {(isLoading || isPendingDeletion) && (
+      {(isLoading || isPendingDeletion || isDeletionError) && (
         <div className="absolute inset-0 bg-background/70 backdrop-blur-sm rounded-lg z-10 flex items-center justify-center">
           <div className="flex items-center gap-2">
+            {isDeletionError ? (
+              <AlertCircle className="h-4 w-4 text-destructive" />
+            ) : (
             <div className={`h-4 w-4 rounded-full border-2 ${isPendingDeletion ? 'border-destructive' : 'border-primary'} border-t-transparent animate-spin`}></div>
-            <span className={`text-xs font-medium ${isPendingDeletion ? 'text-destructive' : ''}`}>
-              {isPendingDeletion ? 'Deleting...' : 'Loading...'}
+            )}
+            <span className={`text-xs font-medium ${isDeletionError ? 'text-destructive' : isPendingDeletion ? '' : ''}`}>
+              {isDeletionError ? 'Error deleting' : isPendingDeletion ? 'Deleting...' : 'Loading...'}
             </span>
           </div>
         </div>

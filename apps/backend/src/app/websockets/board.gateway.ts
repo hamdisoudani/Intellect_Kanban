@@ -65,14 +65,14 @@ export class BoardGateway
    * Students join "board:{boardId}:student:{studentId}"
    */
   @SubscribeMessage('joinBoard')
-  handleJoinBoard(
+  handleJoinRoom(
     @ConnectedSocket() client: Socket, 
     @MessageBody() payload: { boardId: string },
   ): { success: boolean; room?: string; error?: string } {
     const { boardId } = payload;
     const user = client.data.user;
     
-    this.logger.log(`[BoardGateway] User ${user?.email} attempting to join board: ${boardId}`);
+    this.logger.log(`[BoardGateway] User ${user?.email} attempting to join board room for board: ${boardId}`);
 
     if (!user || !boardId) {
       this.logger.error('[BoardGateway] Invalid joinBoard request: missing user or boardId');
@@ -92,6 +92,7 @@ export class BoardGateway
       roomToJoin = `board:${boardId}:teachers`;
     } else if (user.role === UserRole.STUDENT) {
       roomToJoin = `board:${boardId}:student:${user.id}`;
+      this.logger.log(`[BoardGateway] Student ${user.email} will join specific room: ${roomToJoin}`);
     } else {
       this.logger.warn(`[BoardGateway] User ${user.email} has an unauthorized role: ${user.role}`);
       return { success: false, error: 'Unauthorized role' };

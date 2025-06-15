@@ -18,7 +18,8 @@ interface ActivitiesState {
   isActivityDetailOpen: boolean;
   isCreateActivityOpen: boolean;
   preSelectedColumn: string | null;
-  deletingActivityId: string;
+  deletingActivityId: string | null;
+  deletionErrorId: string | null;
   isMetaActivityDetailOpen: boolean;
   detailMetaActivity: ExtendedActivity | null;
   
@@ -62,7 +63,8 @@ export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
   isActivityDetailOpen: false,
   isCreateActivityOpen: false,
   preSelectedColumn: null,
-  deletingActivityId: '',
+  deletingActivityId: null,
+  deletionErrorId: null,
   isMetaActivityDetailOpen: false,
   detailMetaActivity: null,
   
@@ -126,14 +128,69 @@ export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
   
   createActivity: async (boardId: string, activity: Partial<ExtendedActivity>) => {
     try {
+      // Create a clean object with only the properties we want to send
+      const activityToSend: any = {
+        title: activity.title,
+        description: activity.description,
+        type: activity.type,
+        boardId: activity.boardId || boardId,
+        difficultyLevel: activity.difficultyLevel
+      };
+      
+      // Only add properties that exist and should be sent
+      if (activity.dueDate) activityToSend.dueDate = activity.dueDate;
+      if (activity.tags && Array.isArray(activity.tags) && activity.tags.length > 0) {
+        // Extract just the tag IDs
+        activityToSend.tags = activity.tags.map(tag => 
+          typeof tag === 'string' ? tag : tag._id
+        );
+      }
+      
+      // Add columnId for personal activities only
+      if (activity.type === 'personal' && activity.columnId) {
+        activityToSend.columnId = activity.columnId;
+      }
+      
+      // Handle assignedStudents for meta activities
+      if (activity.type === 'meta' && 
+          activity.assignedStudents && 
+          Array.isArray(activity.assignedStudents) && 
+          activity.assignedStudents.length > 0) {
+        
+        // Process student IDs 
+        activityToSend.assignedStudents = activity.assignedStudents
+          // First filter out invalid entries
+          .filter((id): id is any => id !== undefined && id !== null)
+          // Then normalize each ID to ensure it's the correct MongoDB ID format
+          .map((id: any) => {
+            // If it's an object with _id, return that
+            if (typeof id === 'object' && id?._id) return id._id;
+            // If it's a string, return it
+            if (typeof id === 'string' && id.trim().length > 0) return id;
+            // Otherwise return null
+            return null;
+          })
+          // Filter out any nulls from the mapping
+          .filter(id => id !== null);
+          
+        // If after filtering we have no valid IDs, don't send the property
+        if (activityToSend.assignedStudents.length === 0) {
+          delete activityToSend.assignedStudents;
+        }
+      }
+      
+      console.log("Sending activity payload:", JSON.stringify(activityToSend, null, 2));
+      
       const response = await fetch(`/api/board/${boardId}/activities`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(activity),
+        body: JSON.stringify(activityToSend),
       });
       
       if (!response.ok) {
-        throw new Error('Failed to create activity');
+        const errorData = await response.json();
+        console.error("Server response error:", errorData);
+        throw new Error(errorData.message || errorData.error || 'Failed to create activity');
       }
       
       const newActivity: ExtendedActivity = await response.json();
@@ -223,48 +280,32 @@ export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
   },
   
   deleteActivity: async (boardId: string, activityId: string) => {
-    set({ deletingActivityId: activityId });
-    
+    // Begin deletion: set loading and clear previous errors
+    set({ deletingActivityId: activityId, deletionErrorId: null });
     try {
-      const response = await fetch(`/api/board/${boardId}/activities/${activityId}`, {
+      const response = await fetch(`/api/activities/${activityId}`, {
         method: 'DELETE',
       });
-      
       if (!response.ok) {
-        throw new Error('Failed to delete activity');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete activity');
       }
-      
-      // Update local state
-      set(state => {
-        const updatedActivities = { ...state.activities };
-        
-        // Remove from all columns
-        Object.keys(updatedActivities).forEach(columnId => {
-          updatedActivities[columnId] = updatedActivities[columnId].filter(act => 
-            act._id !== activityId
-          );
-        });
-        
-        // Remove from meta activities
-        const updatedMetaActivities = state.metaActivities.filter(act => 
-          act._id !== activityId
-        );
-        
-        return {
-          activities: updatedActivities,
-          metaActivities: updatedMetaActivities,
-          deletingActivityId: ''
-        };
-      });
-      
-      toast.success('Activity deleted successfully');
+      // On success: remove the activity from the local state
+      set(state => ({
+        metaActivities: state.metaActivities.filter(act => act._id !== activityId),
+        activities: Object.keys(state.activities).reduce((acc, columnId) => {
+          acc[columnId] = state.activities[columnId].filter(act => act._id !== activityId);
+          return acc;
+        }, {} as Record<string, ExtendedActivity[]>)
+      }));
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
-      toast.error('Failed to delete activity', { 
-        description: errorMessage
-      });
-      set({ deletingActivityId: '' });
-      throw err;
+      // On error: set error state for this activity
+      set({ deletionErrorId: activityId });
+      // Automatically clear error after 3 seconds
+      setTimeout(() => set({ deletionErrorId: null }), 3000);
+    } finally {
+      // Always clear loading state
+      set({ deletingActivityId: null });
     }
   },
   
@@ -455,7 +496,8 @@ export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
       isActivityDetailOpen: false,
       isCreateActivityOpen: false,
       preSelectedColumn: null,
-      deletingActivityId: '',
+      deletingActivityId: null,
+      deletionErrorId: null,
       isMetaActivityDetailOpen: false,
       detailMetaActivity: null,
       selectedMetaActivities: new Set<string>(),

@@ -306,32 +306,42 @@ export class AssignmentsService {
    * Delete all assignments for a specific activity
    */
   async removeByActivityId(activityId: string): Promise<void> {
-    // Find all assignments to get their board IDs for notifications
-    const assignments = await this.assignmentModel.find({ 
-      activityId: new Types.ObjectId(activityId) 
+    // Find all assignments to get their board IDs and student IDs for notifications
+    const assignments = await this.assignmentModel.find({
+      activityId: new Types.ObjectId(activityId)
     }).exec();
-    
-    // Group assignments by board ID for efficient notifications
-    const boardAssignments = new Map<string, string[]>();
-    
+
+    // Prepare list of notifications
+    const notifications: { boardId: string; studentId: string; assignmentId: string }[] = [];
     assignments.forEach(assignment => {
       const boardId = typeof assignment.boardId === 'string'
         ? assignment.boardId
         : assignment.boardId.toString();
-        
+      const studentId = typeof assignment.studentId === 'object' && (assignment.studentId as any)._id
+        ? (assignment.studentId as any)._id.toString()
+        : assignment.studentId.toString();
       const assignmentId = (assignment as any)._id.toString();
-      
-      if (!boardAssignments.has(boardId)) {
-        boardAssignments.set(boardId, []);
-      }
-      boardAssignments.get(boardId)?.push(assignmentId);
+      notifications.push({ boardId, studentId, assignmentId });
     });
-    
+
     // Delete all assignments
-    await this.assignmentModel.deleteMany({ 
-      activityId: new Types.ObjectId(activityId) 
+    await this.assignmentModel.deleteMany({
+      activityId: new Types.ObjectId(activityId)
     }).exec();
-    
-    
+
+    // Emit deletion notifications
+    notifications.forEach(({ boardId, studentId, assignmentId }) => {
+      //Notify teachers in the board room
+      this.boardGateway.server
+        .to(`board:${boardId}:teachers`)
+        .emit('assignmentDeleted', { boardId, activityId, assignmentId });
+
+      // Notify the specific student
+      console.log(`[AssignmentsService] Emitting 'assignmentDeleted' to student room: board:${boardId}:student:${studentId}`);
+      console.log(`[AssignmentsService] Deletion data:`, { activityId, assignmentId });
+      this.boardGateway.server
+        .to(`board:${boardId}:student:${studentId}`)
+        .emit('assignmentDeleted', { activityId, assignmentId });
+    });
   }
 } 

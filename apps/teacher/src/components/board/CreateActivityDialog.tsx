@@ -353,8 +353,16 @@ export function CreateActivityDialog({
       }
       
       // For meta activities, include assigned students if applicable
-      if (activityType === 'meta' && values.assignStudents) {
-        payload.assignedStudents = values.assignedStudents;
+      if (activityType === 'meta') {
+        // Only include assignedStudents if the checkbox is checked
+        if (values.assignStudents && Array.isArray(values.assignedStudents) && values.assignedStudents.length > 0) {
+          // Make sure we're only sending valid string IDs
+          payload.assignedStudents = values.assignedStudents.filter((id: any) => typeof id === 'string' && id.trim().length > 0);
+          console.log("Filtered assignedStudents:", payload.assignedStudents);
+        } else {
+          // Make sure we're not sending an empty array
+          delete payload.assignedStudents;
+        }
       }
       
       // Include tags if selected
@@ -379,12 +387,11 @@ export function CreateActivityDialog({
       }
       
       const newActivity = await response.json();
-      toast.success('Activity created successfully');
       
       // Close the dialog
       handleDialogOpenChange(false);
       
-      // Call the callback with the new activity
+      // Call the callback with the new activity - it will show its own success notification
       onActivityCreated(newActivity);
     } catch (err) {
       console.error('Error creating activity:', err);
@@ -736,14 +743,17 @@ export function CreateActivityDialog({
                                             as={Checkbox}
                                             id={`student-${student.id}`}
                                             name="assignedStudents"
-                                            value={student.id}
-                                            checked={values.assignedStudents.includes(student.id)}
+                                            value={student._id || student.id}
+                                            checked={values.assignedStudents.includes(student._id || student.id)}
                                             onCheckedChange={(checked: boolean) => {
                                               const currentValues = [...values.assignedStudents];
+                                              // Student.id is actually mapped from student._id in the component
+                                              // Ensure we use the actual MongoDB ID
+                                              const studentId = student._id || student.id;
                                               if (checked) {
-                                                currentValues.push(student.id);
+                                                currentValues.push(studentId);
                                               } else {
-                                                const index = currentValues.indexOf(student.id);
+                                                const index = currentValues.indexOf(studentId);
                                                 if (index !== -1) {
                                                   currentValues.splice(index, 1);
                                                 }

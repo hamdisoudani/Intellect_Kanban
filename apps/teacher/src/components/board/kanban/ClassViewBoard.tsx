@@ -5,13 +5,14 @@ import { KanbanView as PersonalViewBoard } from './PersonalViewBoard';
 import { MetaActivitiesColumn } from './MetaActivitiesColumn';
 import { DifficultyLevel } from '@/types/activities';
 import { Tag as TagType } from '@/types/tags';
-import { ChevronLeft, ChevronRight, Layers, X, Filter, Search, Info, Users } from 'lucide-react';
-import { Button } from '@intellect-kanban/ui';
+import { ChevronLeft, ChevronRight, Layers, X, Filter, Search, Info, Users, Trash2 } from 'lucide-react';
+import { Button, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@intellect-kanban/ui';
 import { motion } from 'framer-motion';
 import { BoardLevelFilterBar } from './BoardLevelFilterBar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@intellect-kanban/ui';
 import { AdvancedFilterPanel } from './AdvancedFilterPanel';
 import { useAssignmentsStore } from '@/store/assignmentsStore';
+import { useActivitiesStore } from '@/store';
 
 interface ClassViewBoardProps {
   columns: Array<{ id: string; name: string; order?: number }>;
@@ -117,6 +118,11 @@ export function ClassViewBoard({
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+  const deleteActivity = useActivitiesStore(state => state.deleteActivity);
+  const deletingActivityId = useActivitiesStore(state => state.deletingActivityId);
+  const deletionErrorId = useActivitiesStore(state => state.deletionErrorId);
   
   // Get the getAssignedStudentsForActivity function from the assignments store
   const getAssignedStudentsForActivity = useAssignmentsStore(state => state.getAssignedStudentsForActivity);
@@ -300,6 +306,12 @@ export function ClassViewBoard({
       setOnBoardSelectedStudents(new Set());
   }
 
+  const handleDeleteConfirm = () => {
+    if (!currentMetaActivity) return;
+    deleteActivity(boardId, currentMetaActivity._id);
+    setIsDeleteDialogOpen(false);
+  };
+
   useEffect(() => {
     if (showMobileSearch && searchInputRef.current) {
       searchInputRef.current.focus();
@@ -418,7 +430,8 @@ export function ClassViewBoard({
                   selectedMetaActivities={selectedMetaActivities}
                   isLoadingActivities={isLoadingActivities}
                   isLoadingAssignments={isLoadingAssignments}
-                  deletingActivityId={deletingItemId || ''}
+                  deletingActivityId={deletingActivityId || ''}
+                  deletionErrorId={deletionErrorId || ''}
                   searchQuery={metaActivitySearchQuery}
                   setSearchQuery={setMetaActivitySearchQuery}
                   toggleMetaActivitySelection={toggleMetaActivitySelection}
@@ -564,6 +577,36 @@ export function ClassViewBoard({
                                 >
                                   <Users className="h-4 w-4" />
                                 </Button>
+                                <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        This will permanently delete the activity{' '}
+                                        <strong className="text-foreground">{currentMetaActivity?.title}</strong>
+                                        {' '}and all its assignments. This action cannot be undone.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={handleDeleteConfirm}
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                      >
+                                        Delete
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
                             </div>
                         </div>
                     )}
@@ -581,7 +624,7 @@ export function ClassViewBoard({
                             deletingItemId={deletingItemId}
                             items={currentAssignments}
                             itemType="assignment"
-                            isLoading={isLoadingCurrentAssignments}
+                            isLoading={isLoadingCurrentAssignments || deletingActivityId === currentMetaActivity?._id}
                             className="p-0 sm:p-4"
                         />
                     </div>

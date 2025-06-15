@@ -10,7 +10,6 @@ export const metadata = {
 };
 
 export default async function BoardPage({ params }: BoardPageProps) {
-  // Await params before accessing its properties
   const { id } = await params;
 
   return (
