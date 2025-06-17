@@ -136,4 +136,62 @@ export class TagsService {
       session.endSession();
     }
   }
+
+  /**
+   * Get tag usage data for analytics dashboard
+   * Returns the top 5 most used tags for a specific teacher
+   */
+  async getTagUsageForTeacher(teacherId: string): Promise<any[]> {
+    const teacherObjectId = new Types.ObjectId(teacherId);
+    
+    // Get all tags for this teacher
+    const teacherTags = await this.tagModel.find({ 
+      createdBy: teacherObjectId 
+    }).exec();
+    
+    if (teacherTags.length === 0) {
+      return [];
+    }
+    
+    const tagIds = teacherTags.map(tag => tag._id);
+    
+    // Aggregate tag usage count from activities
+    const results = await this.activityModel.aggregate([
+      {
+        $match: { 
+          createdBy: teacherObjectId,
+          tags: { $in: tagIds }
+        }
+      },
+      {
+        $unwind: "$tags"
+      },
+      {
+        $group: {
+          _id: "$tags",
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { count: -1 }
+      },
+      {
+        $limit: 5
+      }
+    ]).exec();
+    
+    // Get tag names for the IDs
+    const tagMap = new Map<string, string>();
+    for (const tag of teacherTags) {
+      if (tag._id && tag.name) {
+        tagMap.set(tag._id.toString(), tag.name);
+      }
+    }
+    
+    // Format the results
+    return results.map(result => ({
+      tagName: tagMap.get(result._id.toString()) || 'Unknown',
+      count: result.count
+    }));
+  }
 } 

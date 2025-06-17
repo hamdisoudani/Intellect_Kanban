@@ -4,7 +4,7 @@ import { Model, Types } from 'mongoose';
 import { Class, ClassDocument } from './schemas/class.schema';
 import { CreateClassDto } from './dto/create-class.dto';
 import { JoinClassDto } from './dto/join-class.dto';
-import { UserRole } from '../users/schemas/user.schema';
+import { UserRole, UserDocument } from '../users/schemas/user.schema';
 
 @Injectable()
 export class ClassesService {
@@ -176,5 +176,16 @@ export class ClassesService {
     }
     
     await this.classModel.findByIdAndDelete(id).exec();
+  }
+
+  /**
+   * Find all classes created by a specific teacher
+   * For analytics purposes
+   */
+  async findClassesByTeacher(teacherId: string): Promise<ClassDocument[]> {
+    return this.classModel.find({ createdBy: new Types.ObjectId(teacherId) })
+      .populate('createdBy', 'name _id')
+      .populate('joinedUsers', 'name _id')
+      .exec();
   }
 } 

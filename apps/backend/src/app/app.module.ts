@@ -10,6 +10,7 @@ import { ActivitiesModule } from './activities/activities.module';
 import { AssignmentsModule } from './assignments/assignments.module';
 import { TagsModule } from './tags/tags.module';
 import { WebsocketsModule } from './websockets/websockets.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
@@ -21,7 +22,8 @@ import { WebsocketsModule } from './websockets/websockets.module';
     ActivitiesModule,
     AssignmentsModule,
     TagsModule,
-    WebsocketsModule
+    WebsocketsModule,
+    AnalyticsModule
   ],
   controllers: [AppController],
   providers: [AppService],

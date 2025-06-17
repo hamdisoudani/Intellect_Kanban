@@ -59,4 +59,43 @@ export interface Class {
     name: string;
   };
   joinedUsers: StudentOption[];
+}
+
+// Analytics types for teacher dashboard
+export interface StatusCount {
+  status: string;
+  count: number;
+}
+
+export interface MonthlyActivity {
+  month: string;
+  personal: number;
+  meta: number;
+}
+
+export interface TagUsage {
+  tagName: string;
+  count: number;
+}
+
+export interface ClassPerformance {
+  className: string;
+  studentCount: number;
+  boardCount: number;
+  totalAssignments: number;
+  completedAssignments: number;
+  completionPercentage: number;
+}
+
+export interface TeacherDashboardAnalytics {
+  statCards: {
+    activeClasses: number;
+    totalStudents: number;
+    personalActivities: number;
+    metaActivities: number;
+  };
+  assignmentsByStatusChart: StatusCount[];
+  activityCreationChart: MonthlyActivity[];
+  tagUsageChart: TagUsage[];
+  classPerformanceTable: ClassPerformance[];
 } 

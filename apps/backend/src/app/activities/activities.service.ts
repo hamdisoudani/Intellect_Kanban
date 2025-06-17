@@ -818,4 +818,132 @@ export class ActivitiesService {
       throw new BadRequestException(error.message || 'Failed to update activity');
     }
   }
+
+  /**
+   * Get boards for a list of class IDs
+   * For analytics purposes
+   */
+  async getBoardsByClassIds(classIds: any[]): Promise<any[]> {
+    return this.boardModel.find({ 
+      classId: { $in: classIds.map(id => new Types.ObjectId(id)) } 
+    }).exec();
+  }
+
+  /**
+   * Get boards for a specific class ID
+   * For analytics purposes
+   */
+  async getBoardsByClassId(classId: any): Promise<any[]> {
+    return this.boardModel.find({ 
+      classId: new Types.ObjectId(classId)
+    }).exec();
+  }
+
+  /**
+   * Count activities created by a teacher, filtered by type
+   * For analytics purposes
+   */
+  async countActivitiesByTypeAndTeacher(
+    teacherId: string,
+    type: 'personal' | 'meta'
+  ): Promise<number> {
+    return this.activityModel.countDocuments({
+      createdBy: new Types.ObjectId(teacherId),
+      type
+    }).exec();
+  }
+
+  /**
+   * Get activity creation data broken down by month
+   * For analytics dashboard
+   */
+  async getActivityCreationByMonth(
+    teacherId: string,
+    startDate: Date,
+    endDate: Date
+  ): Promise<any[]> {
+    // Convert to Types.ObjectId
+    const teacherObjectId = new Types.ObjectId(teacherId);
+    
+    // Use aggregation to group activities by month and type
+    const results = await this.activityModel.aggregate([
+      {
+        $match: {
+          createdBy: teacherObjectId,
+          createdAt: { $gte: startDate, $lte: endDate }
+        }
+      },
+      {
+        $project: {
+          year: { $year: "$createdAt" },
+          month: { $month: "$createdAt" },
+          type: 1
+        }
+      },
+      {
+        $group: {
+          _id: { 
+            year: "$year",
+            month: "$month",
+            type: "$type"
+          },
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { "_id.year": 1, "_id.month": 1 }
+      }
+    ]).exec();
+    
+    // Transform the results to the format needed by the frontend
+    const monthsMap: { [key: number]: string } = {
+      1: 'January',
+      2: 'February',
+      3: 'March',
+      4: 'April',
+      5: 'May',
+      6: 'June',
+      7: 'July',
+      8: 'August',
+      9: 'September',
+      10: 'October',
+      11: 'November',
+      12: 'December'
+    };
+    
+    // Create a map to store data for each month
+    const monthlyData: Record<string, {month: string, personal: number, meta: number}> = {};
+    
+    // Initialize with all months in the range
+    let currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth() + 1; // JavaScript months are 0-indexed
+      const key = `${year}-${month}`;
+      const monthName = `${monthsMap[month]} ${year}`;
+      
+      monthlyData[key] = {
+        month: monthName,
+        personal: 0,
+        meta: 0
+      };
+      
+      // Move to next month
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+    
+    // Fill in actual data
+    for (const result of results) {
+      const { year, month, type } = result._id;
+      const key = `${year}-${month}`;
+      
+      if (monthlyData[key] && (type === 'personal' || type === 'meta')) {
+        // Use type assertion to tell TypeScript this is safe
+        monthlyData[key][type as 'personal' | 'meta'] = result.count;
+      }
+    }
+    
+    // Convert the map to an array
+    return Object.values(monthlyData);
+  }
 } 

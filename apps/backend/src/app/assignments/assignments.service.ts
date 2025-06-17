@@ -390,4 +390,94 @@ export class AssignmentsService {
         .emit('assignmentDeleted', { activityId, assignmentId });
     });
   }
+
+  /**
+   * Get assignment counts grouped by status (column)
+   * For analytics dashboard
+   */
+  async getAssignmentCountsByStatus(boardIds: any[]): Promise<any[]> {
+    // Use MongoDB aggregation to group and count assignments by column
+    const results = await this.assignmentModel.aggregate([
+      {
+        $match: { 
+          boardId: { $in: boardIds.map(id => new Types.ObjectId(id)) } 
+        }
+      },
+      {
+        $group: {
+          _id: "$columnId",
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { _id: 1 }
+      }
+    ]).exec();
+    
+    // Transform results to the format needed by the frontend
+    return results.map(result => ({
+      status: result._id, // columnId
+      count: result.count
+    }));
+  }
+
+  /**
+   * Get completion percentage for assignments across boards
+   * For analytics dashboard
+   */
+  async getCompletionPercentageForBoards(boardIds: any[]): Promise<{ percentage: number }> {
+    const countResults = await this.assignmentModel.aggregate([
+      {
+        $match: { 
+          boardId: { $in: boardIds.map(id => new Types.ObjectId(id)) } 
+        }
+      },
+      {
+        $group: {
+          _id: {
+            isDone: { $eq: ["$columnId", "done"] }
+          },
+          count: { $sum: 1 }
+        }
+      }
+    ]).exec();
+    
+    let doneCount = 0;
+    let totalCount = 0;
+    
+    for (const result of countResults) {
+      if (result._id.isDone) {
+        doneCount = result.count;
+      }
+      totalCount += result.count;
+    }
+    
+    const percentage = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+    
+    return { percentage };
+  }
+
+  /**
+   * Count total number of assignments for specified boards
+   */
+  async countTotalAssignmentsByBoardIds(boardIds: any[]): Promise<number> {
+    const objectIdBoardIds = boardIds.map(id => new Types.ObjectId(id));
+    
+    return this.assignmentModel.countDocuments({
+      boardId: { $in: objectIdBoardIds }
+    }).exec();
+  }
+
+  /**
+   * Count completed assignments for specified boards
+   * (assumes 'done' is the completion column ID)
+   */
+  async countCompletedAssignmentsByBoardIds(boardIds: any[]): Promise<number> {
+    const objectIdBoardIds = boardIds.map(id => new Types.ObjectId(id));
+    
+    return this.assignmentModel.countDocuments({
+      boardId: { $in: objectIdBoardIds },
+      columnId: 'done' // Assuming 'done' is the completion column
+    }).exec();
+  }
 } 
