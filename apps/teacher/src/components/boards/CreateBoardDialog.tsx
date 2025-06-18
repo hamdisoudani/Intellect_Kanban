@@ -25,13 +25,15 @@ interface CreateBoardDialogProps {
   classId: string; // Class ID for the board
   variant?: "default" | "outline" | "secondary"; // Optional button variant
   size?: "default" | "sm" | "lg"; // Optional button size
+  className?: string; // Optional className for custom styling
 }
 
 export function CreateBoardDialog({ 
   onBoardCreated, 
   classId, 
   variant = "default",
-  size = "default"
+  size = "default",
+  className
 }: CreateBoardDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -89,7 +91,7 @@ export function CreateBoardDialog({
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant={variant} size={size}>
+        <Button variant={variant} size={size} className={className}>
           <PlusIcon className="mr-2 h-4 w-4" />
           Create Board
         </Button>

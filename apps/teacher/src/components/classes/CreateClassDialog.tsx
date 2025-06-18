@@ -20,12 +20,14 @@ import { Class } from '@/utils/types';
 import { CreateClassRequest } from '@/utils/types/classes';
 import { PlusIcon, Loader2Icon } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { cn } from '@intellect-kanban/utils';
 
 interface CreateClassDialogProps {
   onClassCreated: (newClass: Class) => void;
+  className?: string;
 }
 
-export function CreateClassDialog({ onClassCreated }: CreateClassDialogProps) {
+export function CreateClassDialog({ onClassCreated, className }: CreateClassDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const handleSubmit = async (
@@ -74,7 +76,7 @@ export function CreateClassDialog({ onClassCreated }: CreateClassDialogProps) {
           whileHover={{ scale: 1.02 }} 
           whileTap={{ scale: 0.98 }}
         >
-          <Button className="gap-2 px-4 font-medium">
+          <Button className={cn("gap-2 px-4 font-medium", className)}>
             <PlusIcon className="h-4 w-4" />
             Create Class
           </Button>

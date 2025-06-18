@@ -7,7 +7,7 @@ import { ClassBoardsTab } from './ClassBoardsTab';
 import { toast } from 'sonner';
 import { Class, Board } from '@/utils/types';
 import { useRouter } from 'next/navigation';
-import { InfoIcon, LayoutDashboardIcon, UsersIcon, PlusIcon, AlertTriangleIcon, TrashIcon, ClipboardCopyIcon, CheckIcon, LinkIcon, EyeIcon, EyeOffIcon, ShieldAlertIcon } from 'lucide-react';
+import { InfoIcon, LayoutDashboardIcon, UsersIcon, PlusIcon, AlertTriangleIcon, TrashIcon, ClipboardCopyIcon, CheckIcon, LinkIcon, EyeIcon, EyeOffIcon, ShieldAlertIcon, ChevronLeft } from 'lucide-react';
 import { CreateBoardDialog } from '../boards/CreateBoardDialog';
 import { motion } from 'framer-motion';
 
@@ -218,14 +218,27 @@ export function ClassDetail({ classId }: ClassDetailProps) {
 
   return (
     <div className="max-w-7xl mx-auto">
-      {/* Header with Title and Invitation Code */}
-      <div className="pb-4 mb-5 border-b border-border/30">
-        {/* Single row header with class info on left and invitation code on right */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+      {/* Enhanced Header with Title and Invitation Code */}
+      <div className="pb-4 mb-4 border-b border-border/30">
+        {/* Back to Classes Link - Now part of the header */}
+        <div className="flex items-center mb-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push('/dashboard/classes')}
+            className="text-muted-foreground hover:text-foreground gap-1 px-1.5 h-8"
+          >
+            <ChevronLeft size={16} />
+            <span>Back to Classes</span>
+          </Button>
+        </div>
+        
+        {/* Responsive header with class info and actions */}
+        <div className="flex flex-col md:flex-row items-start justify-between gap-4">
           {/* Class Name and Info */}
           <div className="flex items-center gap-3 md:w-auto w-full">
-            <div className="h-10 w-10 rounded-lg bg-primary/10 flex-shrink-0 flex items-center justify-center text-primary">
-              <InfoIcon size={20} />
+            <div className="h-12 w-12 rounded-lg bg-primary/10 flex-shrink-0 flex items-center justify-center text-primary">
+              <InfoIcon size={22} />
             </div>
             <div>
               <h1 className="text-2xl font-bold">
@@ -239,58 +252,56 @@ export function ClassDetail({ classId }: ClassDetailProps) {
             </div>
           </div>
           
-          <div className="flex items-center gap-3 justify-end">
-            {/* Invitation Code on the right */}
+          {/* Responsive container for invitation code and buttons */}
+          <div className="flex flex-col sm:flex-row items-start gap-3 w-full md:w-auto">
+            {/* Invitation Code */}
             {!isLoadingClass && classData && (
-              <div className="flex items-center gap-2">
-                <div className="relative w-44">
-                  <code className="bg-muted px-3 py-1.5 rounded text-sm font-mono w-full truncate pr-8 inline-block">
-                    {showInviteCode ? classData.invitationCode : '••••••••'}
-                  </code>
-                  <div className="absolute right-1.5 top-1/2 transform -translate-y-1/2">
-                    <Button 
-                      variant="ghost" 
-                      size="icon"
-                      className="h-5 w-5 p-0"
-                      onClick={() => setShowInviteCode(!showInviteCode)}
-                      title={showInviteCode ? "Hide code" : "Show code"}
-                    >
-                      {showInviteCode ? 
-                        <EyeOffIcon size={14} className="text-muted-foreground" /> : 
-                        <EyeIcon size={14} className="text-muted-foreground" />
-                      }
-                    </Button>
+              <div className="w-full sm:w-auto">
+                <div className="bg-muted/40 px-2 py-1 rounded-md flex flex-col sm:flex-row items-start sm:items-center gap-2 max-w-full">
+                  <span className="text-xs text-muted-foreground sm:mr-1">Invitation:</span>
+                  <div className="flex items-center gap-2 flex-1 min-w-0 w-full">
+                    <div className="relative flex-1 min-w-0 max-w-full w-full sm:w-auto">
+                      <code className="bg-background px-3 py-1.5 rounded text-sm font-mono w-full truncate pr-8 inline-block border shadow-sm">
+                        {showInviteCode ? classData.invitationCode : '••••••••'}
+                      </code>
+                      <div className="absolute right-1.5 top-1/2 transform -translate-y-1/2">
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          className="h-5 w-5 p-0"
+                          onClick={() => setShowInviteCode(!showInviteCode)}
+                          title={showInviteCode ? "Hide code" : "Show code"}
+                        >
+                          {showInviteCode ? 
+                            <EyeOffIcon size={14} className="text-muted-foreground" /> : 
+                            <EyeIcon size={14} className="text-muted-foreground" />
+                          }
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex gap-1.5 flex-shrink-0">
+                      <Button 
+                        variant="outline" 
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={handleCopyInviteCode}
+                        title="Copy Invitation Code"
+                      >
+                        {isCopied ? <CheckIcon size={14} /> : <ClipboardCopyIcon size={14} />}
+                      </Button>
+                      <Button 
+                        variant="secondary" 
+                        size="sm"
+                        onClick={handleCopyInviteLink}
+                        className="h-7 text-xs whitespace-nowrap"
+                      >
+                        <LinkIcon size={14} className="mr-1" />
+                        Copy Link
+                      </Button>
+                    </div>
                   </div>
                 </div>
-                <div className="flex gap-1.5">
-                  <Button 
-                    variant="outline" 
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={handleCopyInviteCode}
-                    title="Copy Invitation Code"
-                  >
-                    {isCopied ? <CheckIcon size={14} /> : <ClipboardCopyIcon size={14} />}
-                  </Button>
-                  <Button 
-                    variant="secondary" 
-                    size="sm"
-                    onClick={handleCopyInviteLink}
-                    className="h-7 text-xs whitespace-nowrap"
-                  >
-                    <LinkIcon size={14} className="mr-1" />
-                    Copy Link
-                  </Button>
-                </div>
               </div>
-            )}
-            
-            {/* Create Board Button */}
-            {!isLoadingClass && classData && (
-              <CreateBoardDialog 
-                onBoardCreated={handleBoardCreated}
-                classId={classId}
-              />
             )}
           </div>
         </div>
@@ -300,7 +311,7 @@ export function ClassDetail({ classId }: ClassDetailProps) {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {/* Left Column: Boards in a Card */}
         <Card className="md:col-span-2">
-          <CardContent className="p-5">
+          <CardContent className="p-2 sm:p-3 md:p-5">
             <motion.div
               variants={sectionVariants}
               initial="hidden"
@@ -312,26 +323,35 @@ export function ClassDetail({ classId }: ClassDetailProps) {
                   <h2 className="font-semibold">Kanban Boards</h2>
                 </div>
                 
-                <Badge variant="outline" className="text-xs">
-                  {boards.length} {boards.length === 1 ? 'board' : 'boards'}
-                </Badge>
-              </div>
-              
-              <div className="max-h-[600px] overflow-hidden">
-                <ScrollArea className="h-full pr-3">
-                  {isLoadingBoards ? (
-                    <div className="space-y-3">
-                      {[1, 2].map((i) => (
-                        <Skeleton key={i} className="h-28 w-full" />
-                      ))}
-                    </div>
-                  ) : (
-                    <ClassBoardsTab 
-                      boards={boards} 
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-xs mr-2">
+                    {boards.length} {boards.length === 1 ? 'board' : 'boards'}
+                  </Badge>
+                  
+                  {!isLoadingClass && classData && (
+                    <CreateBoardDialog 
+                      onBoardCreated={handleBoardCreated}
                       classId={classId}
+                      size="sm"
                     />
                   )}
-                </ScrollArea>
+                </div>
+              </div>
+              
+              <div className="w-full">
+                {isLoadingBoards ? (
+                  <div className="space-y-3">
+                    {[1, 2].map((i) => (
+                      <Skeleton key={i} className="h-28 w-full" />
+                    ))}
+                  </div>
+                ) : (
+                  <ClassBoardsTab 
+                    boards={boards} 
+                    classId={classId}
+                    isLoading={isLoadingBoards}
+                  />
+                )}
               </div>
             </motion.div>
           </CardContent>
@@ -339,7 +359,7 @@ export function ClassDetail({ classId }: ClassDetailProps) {
 
         {/* Right Column: Students in a Card */}
         <Card>
-          <CardContent className="p-5">
+          <CardContent className="p-2 sm:p-3 md:p-5">
             <motion.div
               variants={sectionVariants}
               initial="hidden"
