@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { ColumnDef } from '@tanstack/react-table';
-import { DataTable, Badge, Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, Card } from '@intellect-kanban/ui';
+import { DataTable, Badge, Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@intellect-kanban/ui';
 import { Board, Column } from '@/utils/types';
 import { useRouter } from 'next/navigation';
 import { Columns, Calendar, ArrowRight, LayoutGrid } from 'lucide-react';
@@ -122,14 +122,12 @@ export function BoardsTable({ boards, isLoading = false }: BoardsTableProps) {
   // Loading state
   if (isLoading) {
     return (
-      <Card className="border-border/40 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-center h-64 bg-muted/5">
-          <div className="flex flex-col items-center">
-            <div className="w-8 h-8 border-4 border-t-primary/80 rounded-full animate-spin mb-4"></div>
-            <p className="text-muted-foreground">Loading boards...</p>
-          </div>
+      <div className="flex items-center justify-center h-64 bg-muted/5">
+        <div className="flex flex-col items-center">
+          <div className="w-8 h-8 border-4 border-t-primary/80 rounded-full animate-spin mb-4"></div>
+          <p className="text-muted-foreground">Loading boards...</p>
         </div>
-      </Card>
+      </div>
     );
   }
 
@@ -159,20 +157,18 @@ export function BoardsTable({ boards, isLoading = false }: BoardsTableProps) {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
     >
-      <Card className="border-border/40 shadow-sm p-0 sm:p-2 md:p-3 bg-card rounded-xl">
-        <div className="w-full overflow-auto">
-          <DataTable 
-            columns={columns} 
-            data={boards}
-            searchKey="name"
-            searchPlaceholder="Search boards..."
-            className="overflow-hidden"
-            showColumnToggle={true}
-            defaultPageSize={5}
-            pageSizeOptions={[5, 10, 15, 20]}
-          />
-        </div>
-      </Card>
+      <div className="w-full overflow-auto">
+        <DataTable
+          columns={columns}
+          data={boards}
+          searchKey="name"
+          searchPlaceholder="Search boards..."
+          className="overflow-hidden"
+          showColumnToggle={true}
+          defaultPageSize={5}
+          pageSizeOptions={[5, 10, 15, 20]}
+        />
+      </div>
     </motion.div>
   );
 } 

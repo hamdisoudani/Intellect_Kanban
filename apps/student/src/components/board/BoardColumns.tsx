@@ -17,6 +17,7 @@ import { AssignmentDetail } from './AssignmentDetail';
 import { LayoutList } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { updateAssignmentColumn } from '@/utils/api';
+import { useBoardStore } from '@/store/boardStore';
 
 interface BoardColumnsProps {
   board: Board;
@@ -39,6 +40,9 @@ export function BoardColumns({
   const [isDraggingOver, setIsDraggingOver] = useState<string | null>(null);
   const [pendingUpdateAssignments, setPendingUpdateAssignments] = useState<Record<string, boolean>>({});
   
+  // Get recently updated assignments from store
+  const recentlyUpdatedAssignments = useBoardStore(state => state.recentlyUpdatedAssignments);
+  
   // Group assignments by column for more efficient updates and rendering
   const assignmentsByColumn = board.columns.reduce<Record<string, AssignmentWithMeta[]>>(
     (acc, column) => {
@@ -49,6 +53,22 @@ export function BoardColumns({
     }, 
     {}
   );
+
+  // Determine assignment status based on column and due date
+  const getAssignmentStatus = (assignment: AssignmentWithMeta): string => {
+    // If in the 'done' or 'completed' column, mark as completed
+    if (assignment.columnId === 'done' || assignment.columnId === 'completed') {
+      return 'COMPLETED';
+    }
+    
+    // If past due date, mark as overdue
+    if (assignment.dueDate && new Date(assignment.dueDate) < new Date()) {
+      return 'OVERDUE';
+    }
+    
+    // Otherwise, mark as in progress
+    return 'IN_PROGRESS';
+  };
 
   // Handle opening assignment detail
   const handleOpenAssignment = (assignment: AssignmentWithMeta) => {
@@ -227,6 +247,40 @@ export function BoardColumns({
     );
   }
 
+  const renderAssignment = (assignment: AssignmentWithMeta, index: number) => {
+    const isUpdating = pendingUpdateAssignments[assignment._id] || false;
+    const isRecentlyUpdated = recentlyUpdatedAssignments[assignment._id] || false;
+    
+    return (
+      <div 
+        key={assignment._id} 
+        className="mb-2 last:mb-0 w-full"
+        onClick={() => handleOpenAssignment(assignment)}
+      >
+        <AssignmentCard
+          id={assignment._id}
+          activityId={{
+            title: assignment.title,
+            description: assignment.description,
+            dueDate: assignment.dueDate,
+            difficultyLevel: assignment.difficultyLevel,
+            estimatedTimeMinutes: assignment.estimatedTimeMinutes,
+            tags: assignment.tags,
+            attachments: assignment.attachments
+          }}
+          columnId={assignment.columnId}
+          position={assignment.position}
+          status={getAssignmentStatus(assignment)}
+          isDragging={draggingAssignment === assignment._id}
+          isPendingUpdate={isUpdating}
+          isRecentlyUpdated={isRecentlyUpdated}
+          onDragStart={(e) => handleDragStart(e, assignment._id, assignment.columnId)}
+          onDragEnd={handleDragEnd}
+        />
+      </div>
+    );
+  };
+
   return (
     <>
       <motion.div 
@@ -291,22 +345,7 @@ export function BoardColumns({
                                   exit={{ opacity: 0, scale: 0.8, x: -50, transition: { duration: 0.3, ease: "easeOut" } }}
                                   className="w-full"
                                 >
-                                  <div
-                            className="cursor-pointer"
-                            onClick={() => handleOpenAssignment(assignment)}
-                          >
-                            <AssignmentCard
-                              id={assignment._id}
-                                      activityId={assignment}
-                                      columnId={assignment.columnId}
-                              position={assignment.position}
-                              status={assignment.columnId === 'done' ? 'COMPLETED' : assignment.dueDate && new Date(assignment.dueDate) < new Date() ? 'OVERDUE' : 'IN_PROGRESS'}
-                              isDragging={draggingAssignment === assignment._id}
-                              isPendingUpdate={pendingUpdateAssignments[assignment._id]}
-                              onDragStart={(e) => handleDragStart(e, assignment._id, column.id)}
-                              onDragEnd={handleDragEnd}
-                            />
-                          </div>
+                                  {renderAssignment(assignment, 0)}
                                 </motion.div>
                               ))}
                             </AnimatePresence>

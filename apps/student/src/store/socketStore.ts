@@ -46,6 +46,8 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     socketInstance.off('connect_error');
     socketInstance.off('assignmentDeleted');
     socketInstance.off('assignmentUpdated');
+    socketInstance.off('assignmentCreated');
+    socketInstance.off('metaActivityUpdated');
 
     // Set up event listeners
     socketInstance.on('connect', () => {
@@ -60,6 +62,26 @@ export const useSocketStore = create<SocketState>((set, get) => ({
           toast.error('Could not connect to board', { description: response.error });
         }
       });
+    });
+
+    socketInstance.on('metaActivityUpdated', (data: { activityId: string, metaActivity: any }) => {
+      console.log('[WebSocket] metaActivityUpdated event received:', data);
+      
+      try {
+        // Use the new method we added to boardStore to update assignments
+        useBoardStore.getState().updateAssignmentsFromMetaActivity(
+          data.activityId,
+          data.metaActivity
+        );
+        
+        // Remove the toast notification since we now show an animation
+        // toast.info('Activity updated', {
+        //   description: `"${data.metaActivity.title}" has been updated by the teacher.`
+        // });
+      } catch (error) {
+        console.error('[WebSocket] Error processing meta activity update:', error);
+        toast.error('Error updating activity');
+      }
     });
       
     socketInstance.on('disconnect', (reason) => {

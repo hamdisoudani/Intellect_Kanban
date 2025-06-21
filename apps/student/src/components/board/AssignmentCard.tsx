@@ -15,9 +15,9 @@ import {
   CircleIcon 
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { formatMinutesToTime } from '@/utils/format';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { FrontendTag } from '@/types';
 
 interface ActivityData {
@@ -38,6 +38,7 @@ interface AssignmentCardProps {
   status?: string;
   isDragging?: boolean;
   isPendingUpdate?: boolean;
+  isRecentlyUpdated?: boolean; // New prop to track recently updated assignments
   onDragStart?: (e: React.DragEvent<HTMLDivElement>) => void;
   onDragEnd?: (e: React.DragEvent<HTMLDivElement>) => void;
 }
@@ -50,6 +51,7 @@ const AssignmentCard: React.FC<AssignmentCardProps> = ({
   status,
   isDragging,
   isPendingUpdate = false,
+  isRecentlyUpdated = false, // Default to false
   onDragStart,
   onDragEnd,
 }) => {
@@ -102,9 +104,9 @@ const AssignmentCard: React.FC<AssignmentCardProps> = ({
   
   return (
     <div
-      draggable={!isPendingUpdate}
-      onDragStart={!isPendingUpdate ? onDragStart : undefined}
-      onDragEnd={!isPendingUpdate ? onDragEnd : undefined}
+      draggable={!isPendingUpdate && !isRecentlyUpdated}
+      onDragStart={!isPendingUpdate && !isRecentlyUpdated ? onDragStart : undefined}
+      onDragEnd={!isPendingUpdate && !isRecentlyUpdated ? onDragEnd : undefined}
       className="w-full overflow-hidden"
     >
       <motion.div
@@ -122,7 +124,7 @@ const AssignmentCard: React.FC<AssignmentCardProps> = ({
           y: { duration: 0.2 }
         }}
         className="w-full relative"
-        whileHover={{ scale: isPendingUpdate ? 1 : 1.01, y: isPendingUpdate ? 0 : -2 }}
+        whileHover={{ scale: (isPendingUpdate || isRecentlyUpdated) ? 1 : 1.01, y: (isPendingUpdate || isRecentlyUpdated) ? 0 : -2 }}
       >
         {/* Pending update overlay */}
         {isPendingUpdate && (
@@ -136,6 +138,38 @@ const AssignmentCard: React.FC<AssignmentCardProps> = ({
             </div>
           </div>
         )}
+
+        {/* Recently updated animation overlay */}
+        <AnimatePresence>
+          {isRecentlyUpdated && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-10 rounded-lg pointer-events-none"
+            >
+              <motion.div
+                className="absolute inset-0 bg-primary/20 rounded-lg"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ 
+                  opacity: [0, 0.7, 0],
+                  scale: [0.95, 1.03, 1],
+                  boxShadow: [
+                    "0 0 0 0 rgba(var(--primary), 0)",
+                    "0 0 0 8px rgba(var(--primary), 0.3)",
+                    "0 0 0 16px rgba(var(--primary), 0)"
+                  ]
+                }}
+                transition={{
+                  duration: 2.5,
+                  ease: "easeOut",
+                  times: [0, 0.3, 1],
+                  repeat: 0
+                }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
         
         <Card 
           className={`bg-card overflow-hidden max-w-full transition-all ${
@@ -143,7 +177,9 @@ const AssignmentCard: React.FC<AssignmentCardProps> = ({
               ? 'bg-muted/50 shadow-md ring-1 ring-primary/30' 
               : isPendingUpdate 
                 ? 'opacity-70 pointer-events-none'
-                : 'hover:shadow-sm'
+                : isRecentlyUpdated
+                  ? 'shadow-md ring-1 ring-primary/50'
+                  : 'hover:shadow-sm'
           }`}
           style={getCardBorderStyle()}
         >

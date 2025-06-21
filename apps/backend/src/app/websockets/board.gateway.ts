@@ -138,4 +138,36 @@ export class BoardGateway
       assignment: assignmentData
     });
   }
+
+  /**
+   * Notify students about meta activity updates
+   * This will be called when a meta activity is updated to propagate changes to all assignments
+   */
+  notifyStudentsAboutMetaActivityUpdate(boardId: string, studentIds: string[], metaActivity: any) {
+    this.logger.log(`[BoardGateway] Notifying ${studentIds.length} students about meta activity update for activity ${metaActivity._id}`);
+    
+    // Extract the relevant fields from meta activity that need to be propagated to assignments
+    const metaActivityData = {
+      _id: metaActivity._id,
+      title: metaActivity.title,
+      description: metaActivity.description,
+      dueDate: metaActivity.dueDate,
+      difficultyLevel: metaActivity.difficultyLevel,
+      estimatedTimeMinutes: metaActivity.estimatedTimeMinutes,
+      tags: metaActivity.tags,
+      updatedAt: metaActivity.updatedAt
+    };
+    
+    // Notify each assigned student individually
+    studentIds.forEach(studentId => {
+      const studentRoom = `board:${boardId}:student:${studentId}`;
+      this.logger.log(`[BoardGateway] Emitting metaActivityUpdated to room ${studentRoom}`);
+      
+      this.server.to(studentRoom).emit('metaActivityUpdated', {
+        boardId,
+        activityId: metaActivity._id,
+        metaActivity: metaActivityData
+      });
+    });
+  }
 } 

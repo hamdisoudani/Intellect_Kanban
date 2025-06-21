@@ -32,6 +32,7 @@ export function ClassesTable({ classes, isLoading = false }: ClassesTableProps) 
 
   const columns = useMemo<ColumnDef<Class>[]>(() => [
     {
+      id: "name",
       accessorKey: "name",
       header: "Class Name",
       cell: ({ row }) => (
@@ -48,15 +49,18 @@ export function ClassesTable({ classes, isLoading = false }: ClassesTableProps) 
       )
     },
     {
+      id: "status",
       accessorKey: "status",
       header: "Status",
       size: 120,
       cell: () => <StatusBadge status="active" className="px-3" />
     },
     {
+      id: "createdAt",
       accessorKey: "createdAt",
       header: "Created Date",
       size: 160,
+      enableHiding: true,
       cell: ({ row }) => {
         const date = new Date(row.original.createdAt);
         return (
@@ -72,9 +76,11 @@ export function ClassesTable({ classes, isLoading = false }: ClassesTableProps) 
       },
     },
     {
+      id: "joinedUsers",
       accessorKey: "joinedUsers",
       header: "Students",
       size: 150,
+      enableHiding: true,
       cell: ({ row }) => {
         const studentCount = row.original.joinedUsers.length;
         return (
@@ -86,6 +92,7 @@ export function ClassesTable({ classes, isLoading = false }: ClassesTableProps) 
       },
     },
     {
+      id: "invitationCode",
       accessorKey: "invitationCode",
       header: "Invitation Code",
       cell: ({ row }) => {
@@ -93,7 +100,7 @@ export function ClassesTable({ classes, isLoading = false }: ClassesTableProps) 
         const code = row.original.invitationCode;
         
         return (
-          <div className="flex items-center gap-2 p-1.5 px-3 bg-muted/20 rounded-md w-[200px]">
+          <div className="flex items-center gap-2 p-1.5 px-3 bg-muted/20 rounded-md w-full sm:w-[200px]">
             <code className="text-sm font-mono flex-1 truncate" style={{ filter: isVisible ? 'none' : 'blur(4px)' }}>
               {code}
             </code>
@@ -171,13 +178,13 @@ export function ClassesTable({ classes, isLoading = false }: ClassesTableProps) 
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
     >
-      <Card className="border-border/40 shadow-sm p-0 sm:p-2 md:p-3 bg-card rounded-xl">
-        <div className="w-full overflow-auto">
+      <Card className="border-border/40 shadow-sm overflow-hidden rounded-xl">
+        <div className="p-2 sm:p-3 md:p-4 w-full overflow-auto">
           <DataTable 
             columns={columns} 
             data={classes}
             searchKey="name"
-            searchPlaceholder="Search classes..."
+            searchPlaceholder="Search..."
             className="overflow-hidden"
             showColumnToggle={true}
             defaultPageSize={10}

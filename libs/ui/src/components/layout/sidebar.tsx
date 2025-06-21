@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Button } from '../ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/tooltip';
 
 export interface SidebarMenuItem {
   icon: React.ReactNode;
@@ -49,7 +50,7 @@ const sidebarVariants = {
     }
   },
   collapsed: {
-    width: 72, // w-18 is 72px
+    width: 56, // w-14 is 56px
     transition: {
       type: "spring", 
       stiffness: 400, 
@@ -149,7 +150,7 @@ export function Sidebar({
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -5 }}
                   transition={{ duration: 0.2 }}
-                  className="px-3 mb-2 text-xs font-semibold text-muted-foreground"
+                  className="uppercase text-xs tracking-wider text-muted-foreground font-semibold px-4 pt-4 pb-2"
                 >
                   {section.title}
                 </motion.h2>
@@ -166,44 +167,75 @@ export function Sidebar({
                     delay: itemIndex * 0.05 // Stagger effect
                   }}
                 >
-                  <Link
-                    href={item.href}
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                      item.isActive 
-                        ? "bg-primary/10 text-primary font-medium border-l-2 border-primary" 
-                        : "hover:bg-secondary text-foreground hover:text-foreground",
-                      (!isCollapsed || isMobile) ? "justify-start" : "justify-center"
-                    )}
-                    title={isCollapsed && !isMobile ? item.label : undefined}
-                  >
-                    <span className="flex-shrink-0 w-5 h-5">
-                      {item.icon}
-                    </span>
-                    <AnimatePresence>
-                      {(!isCollapsed || isMobile) && (
-                        <motion.div
-                          initial={{ opacity: 0, width: 0 }}
-                          animate={{ opacity: 1, width: "auto" }}
-                          exit={{ opacity: 0, width: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="flex items-center justify-between w-full"
-                        >
-                          <span className="flex-1 truncate">{item.label}</span>
-                          {item.count !== undefined && (
-                            <span className={cn(
-                              "text-xs font-medium ml-1 px-2 py-0.5 rounded-full",
-                              item.isActive 
-                                ? "bg-primary/20 text-primary" 
-                                : "bg-muted text-muted-foreground"
-                            )}>
-                              {item.count}
+                  {isCollapsed && !isMobile ? (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Link
+                            href={item.href}
+                            aria-label={item.label}
+                            className={cn(
+                              'relative flex items-center justify-center h-10 w-10 rounded-md transition-colors',
+                              item.isActive && 'bg-primary/10',
+                              'hover:bg-muted/20 focus:bg-muted/20',
+                              'mx-auto'
+                            )}
+                            tabIndex={0}
+                          >
+                            {/* Active indicator */}
+                            {item.isActive && (
+                              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-primary rounded-r" />
+                            )}
+                            <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
+                              {item.icon}
                             </span>
-                          )}
-                        </motion.div>
+                          </Link>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" align="center">
+                          {item.label}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ) : (
+                    <Link
+                      href={item.href}
+                      aria-label={item.label}
+                      className={cn(
+                        'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
+                        item.isActive 
+                          ? 'bg-primary/10 text-primary font-medium border-l-4 border-primary' 
+                          : 'hover:bg-secondary text-foreground hover:text-foreground',
+                        (!isCollapsed || isMobile) ? 'justify-start' : 'justify-center'
                       )}
-                    </AnimatePresence>
-                  </Link>
+                    >
+                      <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
+                        {item.icon}
+                      </span>
+                      <AnimatePresence>
+                        {(!isCollapsed || isMobile) && (
+                          <motion.div
+                            initial={{ opacity: 0, width: 0 }}
+                            animate={{ opacity: 1, width: 'auto' }}
+                            exit={{ opacity: 0, width: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="flex items-center justify-between w-full"
+                          >
+                            <span className="flex-1 truncate">{item.label}</span>
+                            {item.count !== undefined && (
+                              <span className={cn(
+                                'text-xs font-medium ml-1 px-2 py-0.5 rounded-full',
+                                item.isActive 
+                                  ? 'bg-primary/20 text-primary' 
+                                  : 'bg-muted text-muted-foreground'
+                              )}>
+                                {item.count}
+                              </span>
+                            )}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </Link>
+                  )}
                 </motion.li>
               ))}
             </ul>
@@ -213,40 +245,35 @@ export function Sidebar({
 
       {/* User profile */}
       {userProfile && (
-        <div className="border-t border-border p-4 mt-auto">
-          <div className={cn(
-            "flex items-center gap-3",
-            (isCollapsed && !isMobile) && "justify-center"
-          )}>
-            <div className="relative flex-shrink-0">
-              {userProfile.avatar ? (
-                <img 
-                  src={userProfile.avatar} 
-                  alt={userProfile.name} 
-                  className="w-8 h-8 rounded-full border border-border"
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center border border-border">
-                  {userProfile.name.charAt(0)}
-                </div>
-              )}
-              <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-background" />
-            </div>
-            <AnimatePresence>
-              {(!isCollapsed || isMobile) && (
-                <motion.div 
-                  className="flex flex-col"
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <span className="text-sm font-medium truncate">{userProfile.name}</span>
-                  <span className="text-xs text-muted-foreground">Online</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
+        <div className="!hidden flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground border-t border-border mt-auto">
+          <div className="relative flex-shrink-0">
+            {userProfile.avatar ? (
+              <img 
+                src={userProfile.avatar} 
+                alt={userProfile.name} 
+                className="w-8 h-8 rounded-full border border-border"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center border border-border">
+                {userProfile.name.charAt(0)}
+              </div>
+            )}
+            <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-background" />
           </div>
+          <AnimatePresence>
+            {(!isCollapsed || isMobile) && (
+              <motion.div 
+                className="flex flex-col"
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                <span className="text-sm font-medium truncate">{userProfile.name}</span>
+                <span className="text-xs text-muted-foreground">Online</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
     </motion.aside>

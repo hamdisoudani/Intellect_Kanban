@@ -8,6 +8,7 @@ import { UsersModule } from '../users/users.module';
 import { ClassesModule } from '../classes/classes.module';
 import { AssignmentsModule } from '../assignments/assignments.module';
 import { TagsModule } from '../tags/tags.module';
+import { WebsocketsModule } from '../websockets/websockets.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { TagsModule } from '../tags/tags.module';
     ClassesModule,
     AssignmentsModule,
     TagsModule,
+    WebsocketsModule,
   ],
   controllers: [ActivitiesController],
   providers: [ActivitiesService],

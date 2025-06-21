@@ -1,61 +1,43 @@
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Dialog, 
   DialogContent, 
   DialogHeader, 
-  DialogTitle,
+  DialogTitle, 
   DialogFooter,
-  Button,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
   Badge,
-  Avatar,
-  AvatarFallback,
-  ScrollArea,
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+  Input,
+  Textarea,
+  Label,
+  Button,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
   AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
   AlertDialogAction,
   AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  Card,
-  CardContent,
-  Skeleton
 } from '@intellect-kanban/ui';
-import { 
-  CalendarIcon, 
-  MessageCircleIcon,
-  ClockIcon,
-  PencilIcon,
-  TrashIcon,
-  UsersIcon,
-  AlignLeftIcon,
-  InfoIcon,
-  LayoutIcon,
-  UserPlus,
-  TimerIcon,
-  Square
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { format, formatDistanceToNow } from 'date-fns';
-import { toast } from 'sonner';
-import { Tag as TagType } from '@/types/tags';
-import { User } from '@/utils/types/classes';
+import { PencilIcon, CalendarIcon, ClockIcon, X, Save } from 'lucide-react';
 import { DifficultyBadge } from './DifficultyBadge';
+import { TagBadge } from '../ui/TagBadge';
 import { Tag } from '../ui/Tag';
-import stc from 'string-to-color';
-import { DifficultyLevel } from '@/types/activities';
-import Color from 'color';
+import { format, formatDistanceToNow } from 'date-fns';
+import { useActivitiesStore } from '@/store/activitiesStore';
+import { useBoardStore } from '@/store/boardStore';
+import { DifficultyLevel, difficultyLevelLabels } from '@/types/activities';
+import { Tag as TagType } from '@/types/tags';
+import { toast } from 'sonner';
+import { TagsSelectorWithBadges } from '../ui/TagsSelectorWithBadges';
+import { useTags } from '@/contexts/TagsContext';
 
 // Generic Activity interface that works with both Activity types in the codebase
 interface GenericActivity {
@@ -64,15 +46,15 @@ interface GenericActivity {
   description?: string;
   boardId: string;
   dueDate?: string;
-  createdBy?: any;
+  createdBy: any;
   type: 'personal' | 'meta';
   assignedStudents?: any[];
   difficultyLevel?: string;
   estimatedTimeMinutes?: number;
   tags?: any[];
-  createdAt: string;
-  updatedAt: string;
-  priority?: any;
+  createdAt?: string;
+  updatedAt?: string;
+  priority?: string;
   columnId?: string;
 }
 
@@ -84,7 +66,7 @@ interface MetaActivityDetailDialogProps {
   onActivityDeleted?: (activityId: string) => void;
   onDeletePending?: (activityId: string) => void;
   onManageStudents?: (activity: GenericActivity) => void;
-  classStudents: User[];
+  classStudents: any[];
 }
 
 export function MetaActivityDetailDialog({
@@ -97,99 +79,93 @@ export function MetaActivityDetailDialog({
   onManageStudents,
   classStudents = []
 }: MetaActivityDetailDialogProps) {
-  const [activeTab, setActiveTab] = useState('details');
+  // Edit mode states
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formData, setFormData] = useState({ 
+    title: '', 
+    description: '', 
+    dueDate: '', 
+    difficultyLevel: '',
+    tags: [] as TagType[]
+  });
   const [showDeleteAlert, setShowDeleteAlert] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [resolvedTags, setResolvedTags] = useState<TagType[]>([]);
   
-  // Reset tab when dialog opens
-  useEffect(() => {
-    if (isOpen) {
-      setActiveTab('details');
-      setShowDeleteAlert(false);
-    }
-  }, [isOpen]);
+  const updateActivity = useActivitiesStore(state => state.updateActivity);
+  const board = useBoardStore(state => state.board);
+  const boardId = board?._id || '';
+  
+  // Get tags from context
+  const { tags: availableTags, createTag } = useTags();
 
-  // Extract and set tags
+  // Initialize form data when dialog opens
   useEffect(() => {
-    if (!activity?.tags || !Array.isArray(activity.tags)) {
-      setResolvedTags([]);
-      return;
-    }
-    
-    // Check if we have full tag objects or just IDs
-    const hasFullTagObjects = activity.tags.some((tag: any) => 
-      typeof tag === 'object' && tag !== null && tag.name && tag.color
-    );
-    
-    if (hasFullTagObjects) {
-      // We have full tag objects, use them directly
-      setResolvedTags(activity.tags as unknown as TagType[]);
-    } else {
-      // For IDs, use empty objects with generated colors
-      const tagObjects: TagType[] = activity.tags.map((tag: any) => {
-        const tagId = typeof tag === 'object' && tag !== null ? tag._id : String(tag);
-        return { 
-          _id: tagId, 
-          name: 'Tag ' + tagId.substring(0, 5), 
-          color: stc(tagId),
-          createdBy: '',
-          createdAt: '',
-          updatedAt: '' 
-        };
+    if (isOpen && activity) {
+      setFormData({
+        title: activity.title,
+        description: activity.description || '',
+        dueDate: activity.dueDate ? activity.dueDate.split('T')[0] : '',
+        difficultyLevel: activity.difficultyLevel || '',
+        tags: activity.tags || []
       });
-      setResolvedTags(tagObjects);
+      setShowDeleteAlert(false);
+      setIsEditing(false);
     }
-  }, [activity?.tags]);
-  
-  // Get assigned students details
-  const assignedStudents = useMemo(() => {
-    if (!activity || !activity.assignedStudents || !Array.isArray(activity.assignedStudents)) {
-      return [];
-    }
+  }, [isOpen, activity]);
 
-    return activity.assignedStudents.map(student => {
-      if (typeof student === 'object' && student !== null) {
-        return student;
-      }
-      
-      // Try to find the student in classStudents
-      const studentId = String(student);
-      const foundStudent = classStudents.find(s => String(s._id) === studentId);
-      
-      if (foundStudent) {
-        return {
-          _id: studentId,
-          name: foundStudent.name || 'Unknown Student'
-        };
-      }
-      
-      return {
-        _id: studentId,
-        name: 'Student ' + studentId.substring(0, 5)
-      };
-    });
-  }, [activity?.assignedStudents, classStudents]);
-  
   if (!activity) return null;
 
   // Format dates for display
-  const formattedDueDate = activity.dueDate 
+  const formattedDueDate = activity.dueDate
     ? format(new Date(activity.dueDate), 'MMM d, yyyy')
     : 'No due date';
-  
-  const createdDate = activity.createdAt
-    ? format(new Date(activity.createdAt), 'MMM d, yyyy')
-    : 'Unknown';
-    
   const createdTimeAgo = activity.createdAt
     ? formatDistanceToNow(new Date(activity.createdAt), { addSuffix: true })
     : '';
-  
-  const handleDelete = () => {
-    setShowDeleteAlert(true);
+
+  // Handle saving changes
+  const handleSaveChanges = async () => {
+    if (!activity || !boardId) return;
+    setIsSaving(true);
+    const updates: any = {};
+    if (formData.title !== activity.title) updates.title = formData.title;
+    if (formData.description !== (activity.description || '')) updates.description = formData.description;
+    if (formData.dueDate && formData.dueDate !== activity.dueDate?.split('T')[0]) updates.dueDate = formData.dueDate;
+    if (formData.difficultyLevel !== activity.difficultyLevel) updates.difficultyLevel = formData.difficultyLevel;
+    
+    // Handle tags update
+    const currentTagIds = (activity.tags || []).map(tag => typeof tag === 'object' ? tag._id : tag);
+    const newTagIds = formData.tags.map(tag => tag._id);
+    
+    // Check if tags have changed by comparing arrays
+    const tagsChanged = 
+      currentTagIds.length !== newTagIds.length || 
+      currentTagIds.some(id => !newTagIds.includes(id)) ||
+      newTagIds.some(id => !currentTagIds.includes(id));
+    
+    if (tagsChanged) {
+      updates.tags = formData.tags;
+    }
+    
+    if (Object.keys(updates).length) {
+      try {
+        await updateActivity(boardId, activity._id, updates);
+        toast.success('Activity updated successfully');
+        // Close dialog after successful update
+        if (onClose) onClose();
+        if (onOpenChange) onOpenChange(false);
+      } catch (error) {
+        toast.error('Failed to update activity');
+        console.error(error);
+      }
+    } else {
+      // No changes to save
+      setIsEditing(false);
+    }
+    setIsSaving(false);
   };
 
+  // Handle delete confirmation
   const handleConfirmDelete = async () => {
     try {
       // Close both dialogs immediately
@@ -233,179 +209,9 @@ export function MetaActivityDetailDialog({
       }
     }
   };
-  
-  const handleManageStudents = () => {
-    if (onManageStudents) {
-      onManageStudents(activity);
-    }
-  };
 
-  // Add this function to generate avatar styles based on activity
-  const getAvatarStyles = (studentId: string) => {
-    try {
-      if (!activity?._id) return defaultAvatarStyle();
-      
-      // Get base color from activity ID
-      const baseColor = stc(activity._id);
-      
-      // Use student ID to create a slight variation
-      const seed = studentId.charCodeAt(0) || 0;
-      const variation = (seed % 30) / 100; // 0-0.29 variation
-      
-      // Create a Color object for manipulation
-      const color = Color(baseColor);
-      
-      // Create a darker version for the gradient with student-specific variation
-      const darkColor = color.darken(0.2 + variation).fade(0.1).toString();
-      const lightColor = color.lighten(0.1).fade(0.1).toString();
-      
-      // Determine if we need light or dark text for contrast
-      const textColor = color.isDark() ? 'text-white' : 'text-gray-900';
-      
-      return {
-        style: {
-          background: `linear-gradient(to bottom right, ${lightColor}, ${darkColor})`,
-          boxShadow: `inset 0 0 0 1px rgba(0,0,0,0.1)`
-        },
-        textColorClass: textColor
-      };
-    } catch (e) {
-      return defaultAvatarStyle();
-    }
-  };
-  
-  const defaultAvatarStyle = () => ({
-    style: { background: '#e2e8f0' },
-    textColorClass: "text-gray-800"
-  });
-
-  // Render content based on active tab
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'details':
-        return (
-          <div className="space-y-4">
-            <div className="flex flex-col gap-2">
-              <h3 className="text-sm font-medium">Activity Details</h3>
-              {activity.dueDate && (
-                <div className="flex gap-2 items-center">
-                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">Due: {formattedDueDate}</span>
-                </div>
-              )}
-              {activity.estimatedTimeMinutes && (
-                <div className="flex gap-2 items-center">
-                  <TimerIcon className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">
-                    Estimated time: 
-                    {activity.estimatedTimeMinutes < 60
-                      ? ` ${activity.estimatedTimeMinutes} minutes`
-                      : ` ${Math.floor(activity.estimatedTimeMinutes / 60)}h ${activity.estimatedTimeMinutes % 60}m`}
-                  </span>
-                </div>
-              )}
-              <div className="flex gap-2 items-center">
-                <ClockIcon className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">Created {createdTimeAgo}</span>
-              </div>
-            </div>
-          </div>
-        );
-      case 'description':
-        return activity.description ? (
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">Description</h3>
-            <div className="text-sm whitespace-pre-wrap p-3 bg-muted/20 rounded-md">
-              {activity.description}
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-8 text-sm text-muted-foreground">
-            <AlignLeftIcon className="h-10 w-10 text-muted-foreground/20 mb-2" />
-            <p>No description provided</p>
-          </div>
-        );
-      case 'students':
-        return (
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-sm font-medium">Students ({assignedStudents.length})</h3>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleManageStudents}
-                className="h-8"
-              >
-                <UserPlus className="h-3.5 w-3.5 mr-1" />
-                Manage
-              </Button>
-            </div>
-            
-            {assignedStudents.length > 0 ? (
-              <div className="space-y-2">
-                {assignedStudents.map(student => {
-                  const avatarStyles = getAvatarStyles(student._id);
-                  return (
-                  <div key={student._id} className="flex items-center gap-3 p-2 rounded-md bg-muted/20">
-                    <Avatar className="h-8 w-8">
-                        <AvatarFallback 
-                          className={`text-xs font-semibold ${avatarStyles.textColorClass}`}
-                          style={avatarStyles.style}
-                        >
-                        {student.name?.substring(0, 2).toUpperCase() || 'ST'}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="text-sm font-medium">{student.name}</p>
-                    </div>
-                  </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-8 text-sm text-muted-foreground">
-                <UsersIcon className="h-10 w-10 text-muted-foreground/20 mb-2" />
-                <p>No students assigned</p>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  className="h-8 text-xs mt-3" 
-                  onClick={handleManageStudents}
-                >
-                  <UserPlus className="h-3 w-3 mr-1" />
-                  Assign Students
-                </Button>
-              </div>
-            )}
-          </div>
-        );
-      case 'tags':
-        return (
-          <div className="space-y-4">
-            <h3 className="text-sm font-medium">Tags</h3>
-            {resolvedTags.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {resolvedTags.map((tag) => (
-                  <Tag
-                    key={tag._id}
-                    label={tag.name}
-                    color={tag.color}
-                    size="md"
-                    className="py-1 px-3"
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-8 text-sm text-muted-foreground">
-                <LayoutIcon className="h-10 w-10 text-muted-foreground/20 mb-2" />
-                <p>No tags assigned</p>
-              </div>
-            )}
-          </div>
-        );
-      default:
-        return null;
-    }
+  const handleDelete = () => {
+    setShowDeleteAlert(true);
   };
 
   return (
@@ -413,98 +219,233 @@ export function MetaActivityDetailDialog({
       <Dialog 
         open={isOpen} 
         onOpenChange={(open) => {
-          if (!open) {
+          if (!open && !isEditing) {
             if (onClose) onClose();
             if (onOpenChange) onOpenChange(false);
             setShowDeleteAlert(false);
           }
         }}
       >
-        <DialogContent className="max-w-md">
-          <DialogTitle className="text-lg font-semibold mb-1">{activity.title}</DialogTitle>
-          <DialogHeader className="mt-0 p-0">
-            <div className="flex gap-2 mt-1">
-              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/40">
-                Class Activity
-              </Badge>
-              {activity.difficultyLevel && (
-                <DifficultyBadge 
-                  difficultyLevel={activity.difficultyLevel as DifficultyLevel} 
-                  size="sm"
-                />
-              )}
-            </div>
-          </DialogHeader>
-          
-          {/* Tabs navigation */}
-          <div className="border-b mt-2">
-            <div className="flex">
-              <button
-                onClick={() => setActiveTab('details')}
-                className={`px-4 py-2 border-b-2 text-sm font-medium ${
-                  activeTab === 'details' 
-                    ? 'border-primary text-primary' 
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <InfoIcon className="h-4 w-4 inline-block mr-1.5" />
-                Details
-              </button>
+        <DialogContent className="max-w-md [&>button.absolute.top-4.right-4]:hidden">
+          {isEditing ? (
+            // Edit Mode
+            <>
+              <DialogHeader>
+                <div className="flex items-center justify-between">
+                  <DialogTitle>Edit Activity</DialogTitle>
+                </div>
+                <div className="mt-3">
+                  <Label htmlFor="activityTitle" className="text-sm font-medium mb-1.5 block">Title</Label>
+                  <Input
+                    id="activityTitle"
+                    value={formData.title}
+                    onChange={e => setFormData({...formData, title: e.target.value})}
+                    className="font-medium"
+                    placeholder="Activity Title"
+                  />
+                  <div className="flex gap-2 mt-3">
+                    <Badge variant="outline" className="bg-primary/10 text-primary border-primary/40">
+                      Class Activity
+                    </Badge>
+                  </div>
+                </div>
+              </DialogHeader>
               
-              <button
-                onClick={() => setActiveTab('description')}
-                className={`px-4 py-2 border-b-2 text-sm font-medium ${
-                  activeTab === 'description' 
-                    ? 'border-primary text-primary' 
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <AlignLeftIcon className="h-4 w-4 inline-block mr-1.5" />
-                Description
-              </button>
+              <div className="space-y-6 mt-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="dueDate">Due Date</Label>
+                    <Input
+                      id="dueDate"
+                      type="date"
+                      value={formData.dueDate}
+                      onChange={e => setFormData({ ...formData, dueDate: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="difficultyLevel">Difficulty Level</Label>
+                    <Select
+                      value={formData.difficultyLevel}
+                      onValueChange={value => setFormData({ ...formData, difficultyLevel: value })}
+                    >
+                      <SelectTrigger id="difficultyLevel">
+                        <SelectValue placeholder="Select difficulty" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.values(DifficultyLevel).map(level => (
+                          <SelectItem key={level} value={level}>
+                            {difficultyLevelLabels[level]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={e => setFormData({...formData, description: e.target.value})}
+                    placeholder="Add a description..."
+                    className="min-h-[120px]"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <TagsSelectorWithBadges
+                    availableTags={availableTags}
+                    selectedTags={formData.tags}
+                    onChange={(tags) => setFormData({...formData, tags})}
+                    onCreateTag={createTag}
+                    maxTags={5}
+                  />
+                </div>
+              </div>
               
-              <button
-                onClick={() => setActiveTab('students')}
-                className={`px-4 py-2 border-b-2 text-sm font-medium ${
-                  activeTab === 'students' 
-                    ? 'border-primary text-primary' 
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <UsersIcon className="h-4 w-4 inline-block mr-1.5" />
-                Students ({assignedStudents.length})
-              </button>
+              <DialogFooter className="border-t pt-4 mt-4">
+                <div className="flex justify-end gap-2 w-full">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setIsEditing(false)}
+                    disabled={isSaving}
+                    className="border-gray-200"
+                  >
+                    <X className="h-4 w-4 mr-1.5" />
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleSaveChanges}
+                    disabled={isSaving}
+                    className="bg-primary hover:bg-primary/90"
+                  >
+                    {isSaving ? (
+                      <>
+                        <span className="animate-spin mr-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                          </svg>
+                        </span>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-1.5" />
+                        Save Changes
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </DialogFooter>
+            </>
+          ) : (
+            // View Mode
+            <>
+              <DialogHeader className="pb-3 mb-1 border-b">
+                <div className="flex items-center justify-between">
+                  <DialogTitle className="text-xl font-semibold">{activity.title}</DialogTitle>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setIsEditing(true)}
+                    className="gap-1 hover:bg-primary/10"
+                  >
+                    <PencilIcon className="h-4 w-4" />
+                    <span>Edit</span>
+                  </Button>
+                </div>
+              </DialogHeader>
               
-              <button
-                onClick={() => setActiveTab('tags')}
-                className={`px-4 py-2 border-b-2 text-sm font-medium ${
-                  activeTab === 'tags' 
-                    ? 'border-primary text-primary' 
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <LayoutIcon className="h-4 w-4 inline-block mr-1.5" />
-                Tags ({resolvedTags.length})
-              </button>
-            </div>
-          </div>
-          
-          {/* Tab content */}
-          <div className="py-3 min-h-[120px]">
-            {renderTabContent()}
-          </div>
-          
-          <DialogFooter className="border-t pt-3">
-            <Button
-              variant="outline"
-              onClick={() => {
-                if (onClose) onClose();
-                if (onOpenChange) onOpenChange(false);
-              }}
-            >
-              Close
-            </Button>
-          </DialogFooter>
+              <div className="flex flex-wrap gap-2 mb-6 mt-2">
+                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/40">
+                  Class Activity
+                </Badge>
+                {activity.difficultyLevel && (
+                  <DifficultyBadge
+                    difficultyLevel={activity.difficultyLevel as DifficultyLevel}
+                    size="sm"
+                  />
+                )}
+              </div>
+              
+              <div className="space-y-8">
+                {/* Details Section */}
+                <div>
+                  <h3 className="text-sm font-medium mb-3 text-muted-foreground uppercase tracking-wide">Details</h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-muted/30 p-1.5 rounded-md">
+                        <CalendarIcon className="h-4 w-4 text-primary" />
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium">Due Date</span>
+                        <p className="text-sm">{formattedDueDate}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="bg-muted/30 p-1.5 rounded-md">
+                        <ClockIcon className="h-4 w-4 text-primary" />
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium">Created</span>
+                        <p className="text-sm">{createdTimeAgo}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Description Section */}
+                <div>
+                  <h3 className="text-sm font-medium mb-3 text-muted-foreground uppercase tracking-wide">Description</h3>
+                  {activity.description ? (
+                    <div className="text-sm whitespace-pre-wrap p-4 bg-muted/20 rounded-md border border-muted/30">
+                      {activity.description}
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-muted/10 rounded-md border border-dashed border-muted flex items-center justify-center">
+                      <p className="text-sm text-muted-foreground">No description provided</p>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Tags Section */}
+                <div>
+                  <h3 className="text-sm font-medium mb-3 text-muted-foreground uppercase tracking-wide">Tags</h3>
+                  {activity.tags && activity.tags.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {activity.tags.map(tag => (
+                        <TagBadge
+                          key={tag._id}
+                          label={tag.name}
+                          color={tag.color}
+                          size="md"
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-muted/10 rounded-md border border-dashed border-muted flex items-center justify-center">
+                      <p className="text-sm text-muted-foreground">No tags assigned</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <DialogFooter className="border-t pt-4 mt-6">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (onClose) onClose();
+                    if (onOpenChange) onOpenChange(false);
+                  }}
+                  className="w-full sm:w-auto gap-1.5"
+                >
+                  <X className="h-4 w-4" />
+                  Close
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 

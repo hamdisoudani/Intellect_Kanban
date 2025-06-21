@@ -14,6 +14,14 @@ import {
   SettingsIcon,
 } from '@intellect-kanban/ui';
 import { getSession, logout } from '../../server/auth-actions';
+import {
+  LayoutDashboard,
+  KanbanSquare,
+  School,
+  ClipboardList,
+  Users,
+  Settings,
+} from 'lucide-react';
 
 export default function DashboardRootLayout({
   children,
@@ -51,31 +59,31 @@ export default function DashboardRootLayout({
         title: 'MAIN MENU',
         items: [
           {
-            icon: <DashboardIcon />,
+            icon: <LayoutDashboard size={20} />,
             label: 'Dashboard',
             href: '/dashboard',
             isActive: pathname === '/dashboard',
           },
           {
-            icon: <BoardIcon />,
+            icon: <KanbanSquare size={20} />,
             label: 'Kanban Boards',
             href: '/dashboard/boards',
             isActive: pathname.includes('/dashboard/boards'),
           },
           {
-            icon: <ClassIcon />,
+            icon: <School size={20} />,
             label: 'Classes',
             href: '/dashboard/classes',
             isActive: pathname.includes('/dashboard/classes'),
           },
           {
-            icon: <AssignmentIcon />,
+            icon: <ClipboardList size={20} />,
             label: 'Assignments',
             href: '/dashboard/assignments',
             isActive: pathname.includes('/dashboard/assignments'),
           },
           {
-            icon: <StudentsIcon />,
+            icon: <Users size={20} />,
             label: 'Students',
             href: '/dashboard/students',
             isActive: pathname.includes('/dashboard/students'),
@@ -86,7 +94,7 @@ export default function DashboardRootLayout({
         title: 'ACCOUNT',
         items: [
           {
-            icon: <SettingsIcon />,
+            icon: <Settings size={20} />,
             label: 'Settings',
             href: '/dashboard/settings',
             isActive: pathname.includes('/dashboard/settings'),

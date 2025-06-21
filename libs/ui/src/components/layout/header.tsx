@@ -10,7 +10,6 @@ import {
   PanelLeftIcon, 
   PanelRightIcon, 
   Menu, 
-  X,
   User,
   LogOut,
   Settings
@@ -102,14 +101,6 @@ export function ProfileMenu({ user, onSignOut }: ProfileMenuProps) {
                   <Settings size={16} />
                   <span>Settings</span>
                 </Link>
-                <Link 
-                  href="/dashboard/profile" 
-                  className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-muted transition-colors"
-                  onClick={() => setIsOpen(false)}
-                >
-                  <User size={16} />
-                  <span>Profile</span>
-                </Link>
                 <button 
                   onClick={handleSignOut}
                   className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-destructive hover:bg-muted transition-colors"
@@ -138,7 +129,7 @@ export function Header({
 }: HeaderProps) {
   return (
     <header className={cn(
-      "border-b border-border h-14 flex items-center gap-4 px-4 bg-background/95 backdrop-blur-sm",
+      "border-b border-border h-14 flex items-center gap-4 px-2 bg-background/95 backdrop-blur-sm shadow-sm",
       className
     )}>
       {onToggleSidebar && (

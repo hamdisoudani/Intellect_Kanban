@@ -4,22 +4,24 @@ import { Model, Types } from 'mongoose';
 import { Activity, ActivityDocument } from './schemas/activity.schema';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UserRole } from '../users/schemas/user.schema';
-import { Board } from '../boards/schemas/board.schema';
+import { Board, BoardDocument } from '../boards/schemas/board.schema';
 import { UsersService } from '../users/users.service';
 import { ClassesService } from '../classes/classes.service';
 import { AssignmentsService } from '../assignments/assignments.service';
 import { TagsService } from '../tags/tags.service';
 import { UpdateActivityDto } from './dto/update-activity.dto';
+import { BoardGateway } from '../websockets/board.gateway';
 
 @Injectable()
 export class ActivitiesService {
   constructor(
     @InjectModel(Activity.name) private activityModel: Model<ActivityDocument>,
-    @InjectModel(Board.name) private boardModel: Model<Board>,
+    @InjectModel(Board.name) private boardModel: Model<BoardDocument>,
+    private readonly tagsService: TagsService,
     private readonly usersService: UsersService,
     private readonly classesService: ClassesService,
     private readonly assignmentsService: AssignmentsService,
-    private readonly tagsService: TagsService
+    private readonly boardGateway: BoardGateway
   ) {}
 
   /**
@@ -183,7 +185,7 @@ export class ActivitiesService {
           const assignments = await this.assignmentsService.createBatch({
             activityId: (savedActivity._id as Types.ObjectId).toString(),
             studentIds: validStudentIds.map(id => id.toString()),
-          }, board._id.toString());
+          }, (board as any)._id.toString());
           
           
         }
@@ -803,6 +805,28 @@ export class ActivitiesService {
 
       if (!updatedActivity) {
         throw new NotFoundException(`Activity with ID ${id} not found`);
+      }
+
+      // For meta activities, notify all assigned students about the update
+      if (updatedActivity.type === 'meta' && updatedActivity.assignedStudents && updatedActivity.assignedStudents.length > 0) {
+        // Get the boardId
+        const boardId = typeof updatedActivity.boardId === 'string' 
+          ? updatedActivity.boardId 
+          : updatedActivity.boardId.toString();
+        
+        // Extract student IDs from the assignedStudents array
+        const studentIds = updatedActivity.assignedStudents.map(student => 
+          typeof student === 'object' ? 
+            (student as any)._id?.toString() || (student as any).toString() : 
+            (student as any).toString()
+        );
+        
+        // Notify assigned students about the meta activity update
+        this.boardGateway.notifyStudentsAboutMetaActivityUpdate(
+          boardId, 
+          studentIds, 
+          updatedActivity
+        );
       }
 
       return updatedActivity;
