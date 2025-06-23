@@ -84,9 +84,9 @@ export function ClassesTable({ classes, isLoading = false }: ClassesTableProps) 
       cell: ({ row }) => {
         const studentCount = row.original.joinedUsers.length;
         return (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/40 rounded-full w-fit">
+          <div className="flex items-center gap-2 px-3 py-1.5 w-fit">
             <Users size={14} className="flex-shrink-0 text-muted-foreground" />
-            <span className="text-sm font-medium">{studentCount} student{studentCount !== 1 ? 's' : ''}</span>
+            <span className="text-sm font-medium">{studentCount}</span>
           </div>
         );
       },

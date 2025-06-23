@@ -34,7 +34,16 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to load board data');
+        const errorMessage = errorData.error || 'Failed to load board data';
+        
+        // Set error state but don't throw error
+        set({ error: errorMessage, isLoading: false });
+        toast.error('Failed to load board', { 
+          description: errorMessage
+        });
+        
+        // Early return to prevent further processing
+        return;
       }
       
       const boardData = await response.json();
@@ -61,7 +70,9 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       toast.error('Failed to load board', { 
         description: errorMessage
       });
-      throw err;
+      
+      // Don't rethrow the error, just return
+      console.error('[boardStore] Error fetching board:', err);
     }
   },
   

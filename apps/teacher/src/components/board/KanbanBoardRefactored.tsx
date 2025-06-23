@@ -11,6 +11,10 @@ import { ClassViewBoard } from './kanban/ClassViewBoard';
 import { Skeleton } from '@intellect-kanban/ui';
 import { MetaActivityDetailDialog } from './MetaActivityDetailDialog';
 import { useSession } from 'next-auth/react';
+import { Alert, AlertDescription, AlertTitle } from '@intellect-kanban/ui';
+import { Button } from '@intellect-kanban/ui';
+import { AlertCircle, ArrowLeftIcon, RefreshCcw } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 // Import stores
 import { 
@@ -29,6 +33,8 @@ interface KanbanBoardProps {
 export function KanbanBoardRefactored({ boardId }: KanbanBoardProps) {
   // Get session for authentication
   const session = useSession();
+  // Add router at the top level
+  const router = useRouter();
   
   // Use stores instead of local state
   const { 
@@ -337,9 +343,39 @@ export function KanbanBoardRefactored({ boardId }: KanbanBoardProps) {
   // Error state
   if (error || !board) {
     return (
-      <div className="p-6 border border-red-200 bg-red-50 rounded-lg">
-        <h2 className="text-lg font-medium text-red-800">Failed to load board</h2>
-        <p className="mt-1 text-red-700">{error || 'Board not found'}</p>
+      <div className="p-6 flex flex-col items-center justify-center min-h-[50vh]">
+        <div className="w-full max-w-lg">
+          <Alert variant="destructive" className="mb-4 border-2">
+            <AlertCircle className="h-5 w-5" />
+            <AlertTitle>Failed to load board</AlertTitle>
+            <AlertDescription>
+              We couldn't load the board data. This might be due to an expired session.
+            </AlertDescription>
+          </Alert>
+          
+          <div className="flex gap-3 mt-4 justify-end">
+            <Button
+              variant="outline"
+              onClick={() => router.push('/dashboard')}
+              className="gap-2"
+            >
+              <ArrowLeftIcon className="h-4 w-4" />
+              Back to Dashboard
+            </Button>
+            
+            <Button 
+              onClick={() => {
+                // Clear error and refetch the board
+                useBoardStore.setState({ error: null });
+                fetchBoard(boardId);
+              }}
+              className="gap-2"
+            >
+              <RefreshCcw className="h-4 w-4" />
+              Retry
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }

@@ -1,4 +1,5 @@
-import { auth } from '@/auth';
+import { auth, signOut } from '@/auth';
+import { logout } from '@/server/auth-actions';
 import { apiClient } from '@intellect-kanban/utils';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -29,8 +30,15 @@ export async function GET(req: NextRequest) {
 
     // Return the data from the API response
     return NextResponse.json(response.data);
-  } catch (error) {
+  } catch (error: any) {
+    // If the error is a Next.js redirect, re-throw it to let Next.js handle it
+    if (error.message === 'NEXT_REDIRECT') {
+      throw error;
+    }
+    
     console.error('Failed to fetch classes:', error);
+    
+    // For other errors, return a generic 500 response
     return NextResponse.json(
       { error: 'Failed to fetch classes' },
       { status: 500 }

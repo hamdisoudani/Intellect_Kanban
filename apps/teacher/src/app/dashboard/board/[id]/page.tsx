@@ -13,10 +13,10 @@ export default function BoardPage() {
   return (
     <>
       <div className="flex flex-col h-[100dvh] w-screen max-h-[100dvh] max-w-screen overflow-hidden">
-      {/* <SocketProvider boardId={id}> */}
-        <KanbanBoardRefactored boardId={id} />
-      {/* </SocketProvider> */}
-    </div>
+        <SocketProvider boardId={id}>
+          <KanbanBoardRefactored boardId={id} />
+        </SocketProvider>
+      </div>
     </>
   );
 } 
